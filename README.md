@@ -49,12 +49,12 @@ ln -s $S ~/.pi/agent/skills/swarm-setup-agent-skill          # pi
 ln -s $S ~/.agents/skills/swarm-setup-agent-skill            # shared convention
 ```
 
-> **Symlink caveat.** Put the real directory in the host you use most. jcode's
-> server refuses to load a skill whose directory is a symlink (it is discovered
-> and listed, then fails with `Skill '<name>' is not installed on the server`).
-> Hosts that only read `SKILL.md` from disk follow symlinks fine. If a host says
-> the skill is missing while listing it, move the real directory there and
-> symlink the rest.
+> **After installing or renaming.** jcode's background server caches its skill
+> registry at startup. A newly installed or renamed skill can be *listed* in a
+> session yet fail with `Skill '<name>' is not installed on the server`. Fix:
+> `jcode server reload --force` (or restart the server). Symlinked skill
+> directories work fine once the registry is fresh. Hosts that read `SKILL.md`
+> straight from disk (Claude Code, opencode, pi) need nothing.
 
 Requirements: `python3`, plus `node` for the tests. Nothing else, no packages.
 
