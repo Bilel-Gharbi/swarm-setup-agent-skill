@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 .jcode/
 *.stale-backup-*
+.swarm/
