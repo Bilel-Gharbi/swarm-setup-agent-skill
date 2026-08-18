@@ -1,0 +1,16 @@
+{"project":"graph-demo","updated":"2026-08-05T15:32:00Z","gate":"none","escalations":1,
+ "nodes":[
+  {"id":"plan","content":"author plan.md + contracts","role":"brain","model":"zai:glm-5.2","state":"done","tokens":54000},
+  {"id":"critic","content":"adversarial plan review","role":"critic","model":"claude-opus-5","state":"done","depends_on":["plan"],"tokens":12000},
+  {"id":"gate","content":"human approval","role":"gate","state":"done","depends_on":["critic"]},
+  {"id":"be","content":"implement REST endpoints","role":"implementer","domain":"backend","model":"qwen3-coder-plus","state":"done","depends_on":["gate"],"tokens":98000},
+  {"id":"fe","content":"build dashboard UI","role":"implementer","domain":"frontend","model":"zai:glm-5.2","state":"running","depends_on":["gate"],"tokens":61000},
+  {"id":"rbe","content":"review backend diff","role":"reviewer","domain":"backend","model":"claude-opus-5","state":"running","depends_on":["be"],"tokens":21000},
+  {"id":"rfe","content":"review frontend diff","role":"reviewer","domain":"frontend","model":"claude-opus-5","state":"pending","depends_on":["fe"]},
+  {"id":"qabe","content":"api integration tests","role":"qa","domain":"backend","model":"zai:glm-5.2","state":"failed","depends_on":["rbe"],"attempts":2,"escalated":true,"tokens":33000},
+  {"id":"integ","content":"integration gate: seams","role":"integration","state":"pending","depends_on":["qabe","rfe"]}],
+ "events":[{"time":"15:10","msg":"plan approved"},{"time":"15:22","msg":"backend review passed"},{"time":"15:29","msg":"qa:backend failed - escalated"}],
+ "costs":{"implementer:backend":{"tokens":98000},"reviewer:backend":{"tokens":21000},"brain":{"tokens":54000}},
+ "usage":[{"model":"zai:glm-5.2","session":"s1","tokens":115000,"ts":"2026-08-05T15:10:00Z"},
+          {"model":"claude-opus-5","session":"s2","tokens":33000,"ts":"2026-08-05T15:25:00Z"},
+          {"model":"qwen3-coder-plus","session":"s3","tokens":98000,"ts":"2026-08-05T15:20:00Z"}]}

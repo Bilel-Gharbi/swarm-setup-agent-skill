@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>swarm-setup — Interview</title>
+<style>
+  :root{--bg:#0d0f12;--panel:#14181d;--panel2:#1a1f26;--line:#252c35;--text:#e6eaef;
+    --muted:#8b96a5;--dim:#5f6b7a;--accent:#5b9dff;--good:#3fb950;--warn:#d29922;
+    --bad:#f85149;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14.5px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif}
+  .wrap{max-width:860px;margin:0 auto;padding:34px 24px 120px}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 8px}
+  .live{font:11px var(--mono);color:var(--good)}
+  h2{font-size:13.5px;margin:28px 0 10px;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:10px 0}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;font-weight:600}
+  input[type=text],input[type=number],select{width:100%;background:var(--panel2);
+    border:1px solid var(--line);border-radius:7px;color:var(--text);padding:8px 10px;
+    font:13px var(--mono);outline:none}
+  input:focus,select:focus{border-color:var(--accent)}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .row3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+  .chip{font:11.5px var(--mono);padding:4px 10px;border-radius:20px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--muted);cursor:pointer;user-select:none;position:relative}
+  .chip.on{border-color:var(--accent);color:var(--accent);background:#5b9dff1a}
+  .chip.add{border-style:dashed;color:var(--dim)}
+  .chip .x{margin-left:6px;color:var(--dim)}
+  .chip .x:hover{color:var(--bad)}
+  .radio-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .radio-row .chip{padding:6px 12px}
+  .chip.on.good{border-color:var(--good);color:var(--good);background:#3fb9501a}
+  .domain{border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin:8px 0;background:var(--panel2);position:relative}
+  .domain .del{position:absolute;top:8px;right:10px;color:var(--dim);cursor:pointer;font-size:16px;background:none;border:none}
+  button.btn{background:var(--accent);color:#0d0f12;border:none;border-radius:8px;
+    padding:11px 18px;font-weight:700;font-size:13.5px;cursor:pointer;margin-top:8px}
+  button.btn.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  button.btn.big{width:100%;padding:14px;font-size:15px;margin-top:24px;background:var(--good)}
+  .small{font-size:11.5px;color:var(--dim)}
+  .model-sel{position:relative}
+  .unavail{color:var(--warn);font-size:11px;font-family:var(--mono);margin-top:3px;display:none}
+  .rec{color:var(--good);font-size:11px;font-family:var(--mono);margin-top:3px}
+  /* skill picker modal */
+  .modal{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:60px 16px}
+  .modal.open{display:flex}
+  .picker{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:640px;max-width:100%;
+    max-height:75vh;display:flex;flex-direction:column;overflow:hidden}
+  .picker header{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .picker input{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+    color:var(--text);padding:10px 12px;font:13.5px var(--mono);outline:none}
+  .picker .list{overflow:auto;padding:6px}
+  .srow{display:flex;gap:10px;align-items:baseline;padding:8px 10px;border-radius:8px;cursor:pointer}
+  .srow:hover{background:var(--panel2)}
+  .srow.sel{background:#5b9dff14}
+  .srow .nm{font:12.5px var(--mono);color:var(--accent);white-space:nowrap}
+  .srow .ds{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .srow .tick{margin-left:auto;color:var(--good);visibility:hidden}
+  .srow.sel .tick{visibility:visible}
+  .picker footer{padding:10px 16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+  .toast{position:fixed;bottom:20px;right:20px;background:var(--good);color:#0d0f12;font-weight:700;
+    padding:12px 20px;border-radius:8px;opacity:0;transition:.3s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>swarm-setup interview</h1>
+  <p class="sub">Submit writes <code style="font-family:var(--mono)"><span class="statedir">.swarm</span>/swarm-answers.json</code> straight into your project. The waiting agent picks it up instantly.</p>
+  <p class="live" id="livestat">connecting…</p>
+  <button class="btn ghost" style="margin-top:8px" onclick="applyRecs()">★ apply recommended models (budget-aware)</button>
+
+  <h2>Project</h2>
+  <div class="card">
+    <div class="row">
+      <div><label>Project name</label><input type="text" id="project" placeholder="my-app"></div>
+      <div><label>Repo topology</label>
+        <select id="topology">
+          <option value="multi-repo" selected>multi-repo (api/ web/ mobile/, each own git)</option>
+          <option value="monorepo">monorepo (one git tree)</option>
+        </select></div>
+    </div>
+  </div>
+
+  <h2>Brain (planner / architect)</h2>
+  <div class="card role" data-role="brain" data-default-skills="/brainstorming,/make-plan,/writing-plans,/ponytail">
+    <div class="row3">
+      <div class="model-sel"><label>Model</label><select class="model"></select><div class="unavail"></div></div>
+      <div><label>Effort</label><select class="effort"><option>low</option><option>medium</option><option selected>high</option><option>max</option></select></div>
+      <div><label>&nbsp;</label><span class="small">writes plan.md + contracts.md, never code</span></div>
+    </div>
+    <label>Skills <span class="small">(searchable, all installed skills)</span></label>
+    <div class="chips skillbox"></div>
+  </div>
+
+  <h2>Spec &amp; design</h2>
+  <div class="card">
+    <label>Spec mode</label>
+    <div class="radio-row" id="specmode">
+      <span class="chip good on" data-v="ingest">ingest my draft (cheap, default)</span>
+      <span class="chip" data-v="generate">generate (expensive)</span>
+      <span class="chip" data-v="skip">skip</span>
+    </div>
+    <div class="row">
+      <div><label>Draft path</label><input type="text" id="draftpath" placeholder="./docs/spec-draft.md"></div>
+      <div><label>Design folder (for /design-ingest)</label><input type="text" id="designpath" placeholder="./design-export/"></div>
+    </div>
+  </div>
+
+  <h2>Implementers (one per domain)</h2>
+  <div id="domains"></div>
+  <button class="btn ghost" onclick="addDomain()">+ add domain</button>
+
+  <h2>Reviewer (per implementer)</h2>
+  <div class="card role" data-role="reviewer" data-default-skills="/agent-code-reviewer,/requesting-code-review,/ponytail-review,/verification-before-completion">
+    <div class="row">
+      <div class="model-sel"><label>Model</label><select class="model"></select><div class="unavail"></div></div>
+      <div><label>Effort</label><select class="effort"><option>low</option><option>medium</option><option selected>high</option></select></div>
+    </div>
+    <label>Skills</label><div class="chips skillbox"></div>
+    <label style="margin-top:12px">Context limit</label>
+    <div class="radio-row" id="revctx">
+      <span class="chip good on" data-v="diff">diff + spec + contracts only</span>
+      <span class="chip" data-v="repo">whole repo (expensive)</span>
+    </div>
+  </div>
+
+  <h2>Tester (integration + coverage audit)</h2>
+  <div class="card role" data-role="tester" data-default-skills="/test-gaps">
+    <div class="row3">
+      <div class="model-sel"><label>Model</label><select class="model"></select><div class="unavail"></div></div>
+      <div><label>Effort</label><select class="effort"><option>low</option><option selected>medium</option><option>high</option></select></div>
+      <div><label>Enabled</label><select class="enabled"><option selected>yes</option><option>no</option></select></div>
+    </div>
+    <label>Skills</label><div class="chips skillbox"></div>
+  </div>
+
+  <h2>QA (E2E)</h2>
+  <div class="card role" data-role="qa_web" data-default-skills="/browser-test">
+    <b style="font-size:13px">QA: web</b> <span class="small">— native browser tool</span>
+    <div class="row3">
+      <div class="model-sel"><label>Model</label><select class="model"></select><div class="unavail"></div></div>
+      <div><label>Effort</label><select class="effort"><option>low</option><option selected>medium</option><option>high</option></select></div>
+      <div><label>Enabled</label><select class="enabled"><option selected>yes</option><option>no</option></select></div>
+    </div>
+    <label>Skills</label><div class="chips skillbox"></div>
+    <label>env-up command</label><input type="text" class="envup" placeholder="npm run dev & sleep 3; curl -sf http://localhost:3000">
+  </div>
+  <div class="card role" data-role="qa_mobile" data-default-skills="">
+    <b style="font-size:13px">QA: mobile</b> <span class="small">— Maestro YAML via bash</span>
+    <div class="row3">
+      <div class="model-sel"><label>Model</label><select class="model"></select><div class="unavail"></div></div>
+      <div><label>Effort</label><select class="effort"><option>low</option><option selected>medium</option><option>high</option></select></div>
+      <div><label>Enabled</label><select class="enabled"><option>yes</option><option selected>no</option></select></div>
+    </div>
+    <label>Skills</label><div class="chips skillbox"></div>
+    <label>env-up command</label><input type="text" class="envup" placeholder="xcrun simctl boot 'iPhone 16' && ./build-app.sh">
+  </div>
+
+  <h2>Fixer</h2>
+  <div class="card role" data-role="fixer" data-default-skills="/ponytail,/receiving-code-review,/systematic-debugging" data-inherit-model="1">
+    <div class="row">
+      <div class="model-sel"><label>Model</label><select class="model"><option value="__inherit__">(same as branch implementer)</option></select><div class="unavail"></div></div>
+      <div><label>Effort</label><select class="effort"><option selected>low</option><option>medium</option></select></div>
+    </div>
+    <label>Skills</label><div class="chips skillbox"></div>
+    <label style="margin-top:12px">Delta re-review of fixed code before test?</label>
+    <div class="radio-row" id="rereview">
+      <span class="chip good on" data-v="yes">yes (recommended)</span><span class="chip" data-v="no">no</span>
+    </div>
+  </div>
+
+  <h2>Concurrency, visibility, escalation</h2>
+  <div class="card">
+    <div class="row3">
+      <div><label>Max parallel agents</label><input type="number" id="concurrency" value="4" min="1" max="32"></div>
+      <div><label>spawn_mode</label>
+        <select id="spawnmode"><option value="inline" selected>inline (chips)</option>
+          <option value="visible">visible (terminal per agent)</option>
+          <option value="headless">headless</option><option value="auto">auto</option></select></div>
+      <div><label>Swarm mode</label><select id="swarmmode"><option selected>deep</option><option>light</option></select></div>
+    </div>
+    <div class="row3">
+      <div><label>Failures before escalation</label><input type="number" id="failn" value="2" min="1" max="5"></div>
+      <div class="model-sel"><label>Escalate to</label><select id="escmodel" class="model"></select></div>
+      <div><label>After escalation fails</label>
+        <select id="afteresc"><option value="halt" selected>halt + ask human</option><option value="continue">keep trying</option></select></div>
+    </div>
+    <label>Human gate before fan-out?</label>
+    <div class="radio-row" id="humangate">
+      <span class="chip good on" data-v="yes">yes (approve plan+contracts in dashboard)</span>
+      <span class="chip" data-v="no">no, autonomous</span>
+    </div>
+  </div>
+
+  <h2>Obsidian (optional)</h2>
+  <div class="card"><label>Vault path</label><input type="text" id="vault" placeholder="~/Documents/Vault (empty = none)"></div>
+
+  <button class="btn big" onclick="submitAnswers()">Submit → write <span class="statedir">.swarm</span>/swarm-answers.json</button>
+  <p class="small" style="text-align:center;margin-top:10px">After submit, the dashboard opens at <a href="/dashboard" style="color:var(--accent)">/dashboard</a></p>
+</div>
+
+<!-- skill picker modal -->
+<div class="modal" id="modal">
+  <div class="picker">
+    <header><input type="text" id="search" placeholder="Search 185+ installed skills… e.g. review, tdd, browser, security"></header>
+    <div class="list" id="slist"></div>
+    <footer>
+      <span class="small" id="scount"></span>
+      <button class="btn" onclick="closePicker()">Done</button>
+    </footer>
+  </div>
+</div>
+<div class="toast" id="toast">saved</div>
+
+<script>
+let SKILLS=[], MODELS=[], pickerTarget=null;
+
+// Host-agnostic: the server tells us where swarm-*.json actually lives
+// (.jcode/ under jcode, .swarm/ elsewhere). Paint it into the page.
+function applyStateDir(dir){
+  if(!dir)return;
+  const short=dir.split('/').filter(Boolean).pop();
+  document.querySelectorAll('.statedir').forEach(el=>{el.textContent=short;});
+}
+
+// ---------- boot: load live data ----------
+async function boot(){
+  try{
+    const [sk,mo,ho]=await Promise.all([
+      fetch('/api/skills').then(r=>r.json()),
+      fetch('/api/models').then(r=>r.json()),
+      fetch('/api/hosts').then(r=>r.json()).catch(()=>({hosts:[],state_dir:null}))
+    ]);
+    SKILLS=sk; MODELS=mo.models||[];
+    applyStateDir(ho.state_dir);
+    const live=(ho.hosts||[]).filter(h=>h.installed).map(h=>h.id);
+    document.getElementById('livestat').textContent=
+      `● live — ${SKILLS.length} skills scanned, ${MODELS.length} model routes`
+      +`${live.length?`, hosts: ${live.join(', ')}`:''}`
+      +`${mo.generated?` (models exported ${mo.generated})`:' (fallback list)'}`;
+  }catch(e){
+    document.getElementById('livestat').textContent='○ offline — open via serve.py for live skills/models';
+    document.getElementById('livestat').style.color='var(--warn)';
+  }
+  fillModels(); initRoles();
+  // restore previous answers if any
+  try{const prev=await fetch('/api/answers').then(r=>r.json());
+      if(prev&&prev.project)document.getElementById('project').value=prev.project;}catch(e){}
+}
+
+// ---------- recommendation engine ----------
+// Scores LIVE routes per role. Order = priority; first available match wins.
+// Flat-rate subscription routes (zai/alibaba/qwen/kimi) are preferred for
+// volume roles; Claude is reserved for review gates and escalation.
+const RECS={
+  brain:    {want:[/glm-5\.2/,/qwen3\.8-max/,/gpt-5\.5/,/opus/,/claude-fable/], why:'strongest reasoning, flat-rate preferred'},
+  reviewer: {want:[/opus/,/glm-5\.2/,/qwen3\.8-max/,/gpt-5\.4/,/claude-fable/,/sonnet-5/], why:'strong reviewer, different family than the writer'},
+  impl:     {want:[/glm-5\.2/,/qwen3-coder/,/glm-5(?!\.)/,/qwen3\.7-plus/,/sonnet-5/], why:'coder-class, flat-rate'},
+  tester:   {want:[/glm-5\.2/,/qwen3\.[67]-plus/,/glm-5(?!\.)/,/sonnet/], why:'mid-tier for tests'},
+  qa_web:   {want:[/glm-5\.2/,/sonnet/,/qwen3\.[67]-plus/], why:'UI reasoning'},
+  qa_mobile:{want:[/glm-5\.2/,/sonnet/,/qwen3\.[67]-plus/], why:'UI reasoning'},
+  escalate: {want:[/opus/,/gpt-5\.5/,/glm-5\.2/,/qwen3\.8-max/], why:'strongest available for stuck nodes'},
+};
+const fam=r=>/claude|opus|sonnet|haiku|fable/.test(r)?'anthropic':/qwen/.test(r)?'qwen':/glm/.test(r)?'glm':/gpt|openai/.test(r)?'openai':/kimi/.test(r)?'kimi':'other';
+function pick(role,avoidFam){
+  for(const re of (RECS[role]||{}).want||[]){
+    const hit=MODELS.find(m=>m.available!==false&&re.test(m.route)&&(!avoidFam||fam(m.route)!==avoidFam));
+    if(hit)return hit.route;
+  }
+  return (MODELS.find(m=>m.available!==false)||MODELS[0]||{}).route||null;
+}
+function hint(sel,route,why){
+  const ms=sel&&sel.closest('.model-sel'); if(!ms)return;
+  let h=ms.querySelector('.rec');
+  if(!h){h=document.createElement('div');h.className='rec';ms.appendChild(h);}
+  h.textContent=(route&&sel.value===route)?`★ recommended: ${route} — ${why}`:'';
+}
+function applyRecs(){
+  const implRoute=pick('impl');
+  const set=(role,avoid)=>{
+    const r=pick(role,avoid), why=RECS[role].why;
+    if(role==='escalate'){const e=document.getElementById('escmodel'); if(e&&r)e.value=r;}
+    else{const s=document.querySelector(`[data-role=${role}] select.model`); if(s&&r){s.value=r;hint(s,r,why);}}
+  };
+  set('brain'); set('tester'); set('qa_web'); set('qa_mobile');
+  set('reviewer',fam(implRoute)); set('escalate');
+  document.querySelectorAll('.domain select.model').forEach(s=>{s.value=implRoute;hint(s,implRoute,RECS.impl.why);});
+}
+
+function fillModels(){
+  document.querySelectorAll('select.model').forEach(sel=>{
+    const keep=sel.querySelector('option[value="__inherit__"]');
+    sel.innerHTML=''; if(keep)sel.appendChild(keep);
+    MODELS.forEach(m=>{
+      const o=document.createElement('option');
+      o.value=m.route; o.textContent=m.route+(m.available===false?'  ⚠ unavailable':'');
+      if(m.available===false)o.dataset.login=m.login||'';
+      sel.appendChild(o);
+    });
+    sel.onchange=()=>{
+      const o=sel.selectedOptions[0], u=sel.closest('.model-sel')?.querySelector('.unavail');
+      if(u){u.style.display=o.dataset.login?'block':'none';
+            u.textContent=o.dataset.login?`needs: ${o.dataset.login}`:'';}
+      const rec=sel.closest('.model-sel')?.querySelector('.rec'); if(rec)rec.textContent='';
+    };
+  });
+  applyRecs();
+}
+
+// ---------- skill chips + picker ----------
+function initRoles(){document.querySelectorAll('.role').forEach(card=>{
+  const box=card.querySelector('.skillbox');
+  (card.dataset.defaultSkills||'').split(',').filter(Boolean).forEach(s=>addChip(box,s));
+  addPickerBtn(box);
+});}
+function addChip(box,name){
+  if([...box.children].some(c=>c.dataset.s===name))return;
+  const c=document.createElement('span');
+  c.className='chip on'; c.dataset.s=name;
+  c.innerHTML=`${name}<span class="x">×</span>`;
+  c.querySelector('.x').onclick=e=>{e.stopPropagation();c.remove();};
+  const add=box.querySelector('.add');
+  box.insertBefore(c,add||null);
+}
+function addPickerBtn(box){
+  const b=document.createElement('span');
+  b.className='chip add'; b.textContent='🔍 add skill';
+  b.onclick=()=>openPicker(box);
+  box.appendChild(b);
+}
+function openPicker(box){
+  pickerTarget=box;
+  document.getElementById('modal').classList.add('open');
+  document.getElementById('search').value='';
+  renderList('');
+  document.getElementById('search').focus();
+}
+function closePicker(){document.getElementById('modal').classList.remove('open');}
+function renderList(q){
+  const on=new Set([...pickerTarget.children].map(c=>c.dataset.s).filter(Boolean));
+  const ql=q.toLowerCase();
+  const hits=SKILLS.filter(s=>!ql||s.name.toLowerCase().includes(ql)||s.description.toLowerCase().includes(ql));
+  document.getElementById('scount').textContent=`${hits.length} / ${SKILLS.length} skills`;
+  const el=document.getElementById('slist'); el.innerHTML='';
+  hits.slice(0,120).forEach(s=>{
+    const r=document.createElement('div');
+    r.className='srow'+(on.has(s.name)?' sel':'');
+    r.innerHTML=`<span class="nm">${s.name}</span><span class="ds">${s.description||''}</span><span class="tick">✓</span>`;
+    r.onclick=()=>{
+      if(r.classList.contains('sel')){
+        r.classList.remove('sel');
+        [...pickerTarget.children].find(c=>c.dataset.s===s.name)?.remove();
+      }else{r.classList.add('sel');addChip(pickerTarget,s.name);}
+    };
+    el.appendChild(r);
+  });
+}
+document.getElementById('search').addEventListener('input',e=>renderList(e.target.value));
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closePicker();});
+
+// ---------- radio groups ----------
+document.querySelectorAll('.radio-row').forEach(g=>g.querySelectorAll('.chip').forEach(c=>
+  c.onclick=()=>{g.querySelectorAll('.chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');}));
+const radio=id=>document.querySelector('#'+id+' .chip.on')?.dataset.v||'';
+
+// ---------- domains ----------
+let dseq=0;
+function addDomain(name,path){
+  const div=document.createElement('div');
+  div.className='domain role'; div.dataset.role='impl'+(dseq++);
+  div.dataset.defaultSkills='/ponytail,/test-driven-development';
+  div.innerHTML=`
+    <button class="del" onclick="this.parentNode.remove()">×</button>
+    <div class="row3">
+      <div><label>Domain</label><input type="text" class="dname" value="${name||''}" placeholder="backend"></div>
+      <div><label>Folder / working_dir</label><input type="text" class="dpath" value="${path||''}" placeholder="./api"></div>
+      <div class="model-sel"><label>Model</label><select class="model"></select><div class="unavail"></div></div>
+    </div>
+    <label>Skills</label><div class="chips skillbox"></div>`;
+  document.getElementById('domains').appendChild(div);
+  const box=div.querySelector('.skillbox');
+  div.dataset.defaultSkills.split(',').forEach(s=>addChip(box,s));
+  addPickerBtn(box);
+  // fill its model select
+  const sel=div.querySelector('select.model');
+  MODELS.forEach(m=>{const o=document.createElement('option');o.value=m.route;
+    o.textContent=m.route+(m.available===false?'  ⚠ unavailable':'');
+    if(m.available===false)o.dataset.login=m.login||'';sel.appendChild(o);});
+  const r=pick('impl');
+  if(r&&[...sel.options].some(o=>o.value===r)){sel.value=r;hint(sel,r,RECS.impl.why);}
+}
+
+// ---------- collect + submit ----------
+function roleData(card){
+  return {model:card.querySelector('select.model')?.value||null,
+    effort:card.querySelector('.effort')?.value||'medium',
+    enabled:card.querySelector('.enabled')?card.querySelector('.enabled').value==='yes':true,
+    env_up:card.querySelector('.envup')?.value.trim()||null,
+    skills:[...card.querySelectorAll('.skillbox .chip')].map(c=>c.dataset.s).filter(Boolean)};
+}
+function collect(){
+  const R=r=>roleData(document.querySelector(`[data-role=${r}]`));
+  return {_format:'swarm-answers/v1',generated:new Date().toISOString(),
+    project:document.getElementById('project').value.trim()||'unnamed',
+    topology:document.getElementById('topology').value,
+    spec:{mode:radio('specmode'),draft_path:val('draftpath'),design_folder:val('designpath')},
+    roles:{brain:R('brain'),
+      implementers:[...document.querySelectorAll('.domain')].map(d=>({
+        name:d.querySelector('.dname').value.trim()||'domain',
+        path:d.querySelector('.dpath').value.trim()||'.',
+        ...roleData(d),effort:'low'})),
+      reviewer:{...R('reviewer'),context:radio('revctx'),per_implementer:true},
+      tester:R('tester'),qa_web:R('qa_web'),qa_mobile:R('qa_mobile'),
+      fixer:{...R('fixer'),rereview:radio('rereview')==='yes'}},
+    concurrency:+document.getElementById('concurrency').value||4,
+    spawn_mode:document.getElementById('spawnmode').value,
+    swarm_mode:document.getElementById('swarmmode').value,
+    escalation:{after_failures:+document.getElementById('failn').value||2,
+      to:document.getElementById('escmodel').value,then:document.getElementById('afteresc').value},
+    human_gate:radio('humangate')==='yes',
+    obsidian_vault:val('vault')};
+}
+const val=id=>document.getElementById(id).value.trim()||null;
+
+async function submitAnswers(){
+  const a=collect();
+  try{
+    const r=await fetch('/api/answers',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(a)});
+    const j=await r.json();
+    if(j.ok){toast('saved → '+j.path); setTimeout(()=>location.href='/dashboard',900);}
+    else toast('error');
+  }catch(e){ // offline fallback: download
+    const b=new Blob([JSON.stringify(a,null,2)],{type:'application/json'});
+    const l=document.createElement('a');l.href=URL.createObjectURL(b);
+    l.download='swarm-answers.json';l.click();
+    toast('offline: downloaded instead');
+  }
+}
+function toast(t){const el=document.getElementById('toast');el.textContent=t;
+  el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2000);}
+
+boot().then(()=>{addDomain('backend','./api');addDomain('frontend','./web');});
+</script>
+</body>
+</html>

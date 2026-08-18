@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>swarm — Live Dashboard</title>
+<style>
+  :root{--bg:#0d0f12;--panel:#14181d;--panel2:#1a1f26;--line:#252c35;--text:#e6eaef;
+    --muted:#8b96a5;--dim:#5f6b7a;--accent:#5b9dff;--good:#3fb950;--warn:#d29922;
+    --bad:#f85149;--purple:#a371f7;--cyan:#39c5cf;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif}
+  .wrap{max-width:1440px;margin:0 auto;padding:22px 20px 80px}
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+  h1{font-size:19px;margin:0;letter-spacing:-.01em}
+  .proj{font:12.5px var(--mono);color:var(--accent);background:#5b9dff14;
+    border:1px solid #5b9dff33;border-radius:20px;padding:3px 12px}
+  .pulse{font:11px var(--mono);color:var(--good)}
+  .pulse.stale{color:var(--warn)}
+  header .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+  header a{color:var(--dim);font-size:12px;text-decoration:none}
+  header a:hover{color:var(--accent)}
+  /* stats strip */
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 16px}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:9px 16px;min-width:104px}
+  .stat b{display:block;font-size:19px;font-family:var(--mono);letter-spacing:-.02em}
+  .stat span{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .stat.g b{color:var(--good)} .stat.r b{color:var(--bad)} .stat.y b{color:var(--warn)}
+  .stat.b b{color:var(--accent)} .stat.c b{color:var(--cyan)}
+  /* progress */
+  .progress{height:7px;border-radius:4px;background:var(--panel2);overflow:hidden;
+    margin:0 0 18px;display:flex}
+  .progress i{display:block;height:100%}
+  .progress .p-done{background:var(--good)}
+  .progress .p-run{background:var(--accent);background-image:linear-gradient(45deg,#fff2 25%,transparent 25%,transparent 50%,#fff2 50%,#fff2 75%,transparent 75%);background-size:14px 14px;animation:slide 1s linear infinite}
+  .progress .p-fail{background:var(--bad)}
+  @keyframes slide{to{background-position:14px 0}}
+  /* gate banner */
+  .gate{display:none;background:#d299221a;border:1px solid #d2992255;border-radius:12px;
+    padding:14px 20px;margin:0 0 18px;align-items:center;gap:16px;flex-wrap:wrap}
+  .gate.show{display:flex}
+  .gate .msg{flex:1;min-width:240px}
+  .gate .msg b{color:var(--warn)}
+  .gate button{border:none;border-radius:8px;padding:10px 18px;font-weight:700;cursor:pointer;font-size:13.5px}
+  .gate .ok{background:var(--good);color:#0d0f12}
+  .gate .no{background:var(--panel2);color:var(--bad);border:1px solid #f8514955;margin-left:8px}
+  /* view tabs */
+  .tabs{display:flex;gap:6px;margin:0 0 14px}
+  .tab{font:12.5px var(--mono);padding:7px 16px;border-radius:8px;border:1px solid var(--line);
+    background:var(--panel);color:var(--muted);cursor:pointer;user-select:none}
+  .tab.on{border-color:var(--accent);color:var(--accent);background:#5b9dff14}
+  .tab .n{color:var(--dim);margin-left:6px}
+  /* filter bar */
+  .filters{display:flex;gap:14px;flex-wrap:wrap;align-items:center;background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;padding:9px 14px;margin:0 0 14px}
+  .fgroup{display:flex;gap:5px;align-items:center;flex-wrap:wrap}
+  .fgroup .fl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.07em;margin-right:3px}
+  .fchip{font:11px var(--mono);padding:3px 10px;border-radius:14px;border:1px solid var(--line);
+    background:var(--panel2);color:var(--muted);cursor:pointer;user-select:none;transition:.12s}
+  .fchip.on{border-color:var(--accent);color:var(--accent);background:#5b9dff1a}
+  .fchip.on.hi{border-color:#a371f766;color:var(--purple);background:#a371f71a}
+  .fchip.on.lo{border-color:#3fb95066;color:var(--good);background:#3fb9501a}
+  .fclear{margin-left:auto;font:11px var(--mono);color:var(--dim);cursor:pointer;display:none}
+  .fclear.show{display:block}
+  .fclear:hover{color:var(--bad)}
+  .fcount{font:11px var(--mono);color:var(--accent)}
+  /* boards */
+  .board{display:grid;gap:12px;align-items:start}
+  .board.phase{grid-template-columns:repeat(auto-fit,minmax(206px,1fr))}
+  .board.domain{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+  .col{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;min-height:110px}
+  .col h3{margin:2px 4px 10px;font-size:11px;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.07em;display:flex;align-items:center;gap:8px}
+  .col h3 .n{font-family:var(--mono);color:var(--dim);margin-left:auto}
+  .col h3 .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+  .col.running{border-color:#5b9dff3d} .col.running h3 .dot{background:var(--accent)}
+  .col.failed{border-color:#f851493d} .col.failed h3 .dot{background:var(--bad)}
+  .col.done{border-color:#3fb9503d} .col.done h3 .dot{background:var(--good)}
+  .col.gatec{border-color:#d299223d} .col.gatec h3 .dot{background:var(--warn)}
+  /* domain column extras */
+  .dhead{display:flex;align-items:center;gap:8px;margin:2px 4px 8px}
+  .dhead .dn{font-size:13px;font-weight:700}
+  .dhead .dm{font:10.5px var(--mono);color:var(--dim);margin-left:auto}
+  .dbar{height:5px;border-radius:3px;background:var(--panel2);overflow:hidden;display:flex;margin:0 4px 10px}
+  .dbar i{height:100%}
+  .lane{margin:0 0 4px}
+  .lane .lt{font:10px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.06em;margin:8px 4px 4px}
+  /* task cards */
+  .task{background:var(--panel2);border:1px solid var(--line);border-left:3px solid var(--dim);
+    border-radius:9px;padding:9px 11px;margin-bottom:7px;font-size:12.5px;position:relative;transition:.2s}
+  .task .id{font:10px var(--mono);color:var(--dim)}
+  .task .name{margin:1px 0 6px;font-weight:600;line-height:1.35}
+  .task .meta{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .pill{font:10px var(--mono);padding:1px 7px;border-radius:12px;border:1px solid var(--line);color:var(--muted)}
+  .pill.role-brain{color:var(--purple);border-color:#a371f744}
+  .pill.role-impl{color:var(--accent);border-color:#5b9dff44}
+  .pill.role-review{color:var(--warn);border-color:#d2992244}
+  .pill.role-test,.pill.role-qa{color:var(--good);border-color:#3fb95044}
+  .pill.esc{color:var(--bad);border-color:#f8514966;background:#f851491a}
+  .pill.tok{color:var(--cyan);border-color:#39c5cf44}
+  .task.running{border-left-color:var(--accent)}
+  .task.running::after{content:"";position:absolute;top:9px;right:9px;width:7px;height:7px;
+    border-radius:50%;background:var(--accent);animation:blink 1.2s infinite}
+  @keyframes blink{50%{opacity:.2}}
+  .task.failed{border-left-color:var(--bad)}
+  .task.done{border-left-color:var(--good);opacity:.72}
+  .task.gate{border-left-color:var(--warn)}
+  .task .st{position:absolute;bottom:7px;right:10px;font:9.5px var(--mono);color:var(--dim);text-transform:uppercase}
+  /* log + tokens */
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+  .panel h3{margin:0 0 10px;font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+  #log{font:11.5px/1.7 var(--mono);color:#aeb9c6;max-height:250px;overflow:auto;white-space:pre-wrap}
+  #log .t{color:var(--dim)} #log .ok{color:var(--good)} #log .bad{color:var(--bad)} #log .wr{color:var(--warn)}
+  .trow{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .trow .rn{font:11.5px var(--mono);width:42%;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .trow .tb{flex:1;height:8px;border-radius:4px;background:var(--panel2);overflow:hidden}
+  .trow .tb i{display:block;height:100%;background:var(--cyan);border-radius:4px}
+  .trow .tv{font:11px var(--mono);color:var(--cyan);width:64px;text-align:right}
+  .empty{color:var(--dim);text-align:center;padding:36px 10px;font-size:13px}
+  /* top nav */
+  .nav{display:flex;gap:4px;background:var(--panel);border:1px solid var(--line);
+    border-radius:10px;padding:5px;margin:0 0 16px;flex-wrap:wrap}
+  .nav a{font-size:12.5px;padding:7px 15px;border-radius:7px;color:var(--muted);
+    cursor:pointer;text-decoration:none;user-select:none;display:flex;align-items:center;gap:7px}
+  .nav a:hover{color:var(--text);background:var(--panel2)}
+  .nav a.on{background:#5b9dff1a;color:var(--accent);font-weight:600}
+  .nav a .b{font:10px var(--mono);background:var(--panel2);border-radius:10px;padding:1px 7px;color:var(--dim)}
+  .nav a.on .b{background:#5b9dff26;color:var(--accent)}
+  .nav .sp{margin-left:auto;display:flex;align-items:center;gap:12px;padding-right:8px}
+  .view{display:none} .view.on{display:block}
+  /* graph */
+  #graphWrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:8px;overflow:auto;max-height:78vh}
+  #graph{display:block;min-width:100%}
+  #graph .edge{stroke:var(--line);stroke-width:1.6;fill:none;marker-end:url(#arrow)}
+  #graph .edge.hot{stroke:var(--accent);stroke-width:2.2}
+  #graph .edge.blocked{stroke:#f8514966;stroke-dasharray:4 3}
+  #graph .gn rect{stroke-width:1.5;rx:8;fill:var(--panel2);stroke:var(--line)}
+  #graph .gn.done rect{stroke:var(--good);fill:#3fb9501a}
+  #graph .gn.running rect{stroke:var(--accent);fill:#5b9dff1a}
+  #graph .gn.failed rect{stroke:var(--bad);fill:#f851491a}
+  #graph .gn.gate rect{stroke:var(--warn);fill:#d299221a}
+  #graph .gn text{font:11px var(--mono);fill:var(--text)}
+  #graph .gn text.sub{font-size:9.5px;fill:var(--dim)}
+  #graph .gn{cursor:default}
+  #graph .gn.running rect{animation:pulseR 1.6s ease-in-out infinite}
+  @keyframes pulseR{50%{stroke-width:3}}
+  #graph .lane{font:9.5px var(--mono);fill:var(--dim);text-transform:uppercase}
+  .glegend{display:flex;gap:14px;flex-wrap:wrap;font:10.5px var(--mono);color:var(--dim);padding:8px 4px 0}
+  .glegend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+  /* quota */
+  .quota{margin-top:14px}
+  .qrow{display:grid;grid-template-columns:200px 1fr 1fr 130px;gap:10px;align-items:center;
+    padding:9px 10px;border-bottom:1px solid var(--line)}
+  .qrow:last-child{border-bottom:none}
+  @media(max-width:900px){.qrow{grid-template-columns:1fr}}
+  .qname{font:12.5px var(--mono)}
+  .qname .qp{display:block;font-size:10px;color:var(--dim)}
+  .qbar{position:relative}
+  .qbar .lbl{font:9.5px var(--mono);color:var(--dim);text-transform:uppercase;display:flex;justify-content:space-between}
+  .qbar .tb{height:9px;border-radius:5px;background:var(--panel2);overflow:hidden;margin-top:2px}
+  .qbar .tb i{display:block;height:100%;border-radius:5px;background:var(--accent);transition:width .4s}
+  .qbar.hot .tb i{background:var(--warn)}
+  .qbar.over .tb i{background:var(--bad)}
+  .qbar.inf .tb i{background:var(--good);width:100%;opacity:.35}
+  .qremain{font:12px var(--mono);text-align:right;color:var(--muted)}
+  .qremain b{color:var(--text)}
+  .qedit{background:none;border:1px solid var(--line);border-radius:6px;color:var(--dim);
+    font-size:11px;padding:3px 8px;cursor:pointer;margin-left:6px}
+  .qedit:hover{color:var(--accent);border-color:var(--accent)}
+  .qsess{font:10.5px var(--mono);color:var(--dim);padding:2px 10px 8px 10px;display:none}
+  .qsess.show{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>swarm dashboard</h1>
+    <span class="proj" id="proj">—</span>
+    <span class="pulse" id="pulse">● waiting for status…</span>
+    <div class="right"><a href="/">← interview</a></div>
+  </header>
+
+  <nav class="nav" id="nav">
+    <a data-nav="board" class="on">▦ Board <span class="b" id="nbBoard">0</span></a>
+    <a data-nav="graph">⎇ Task graph <span class="b" id="nbGraph">0</span></a>
+    <a data-nav="activity">≡ Activity <span class="b" id="nbLog">0</span></a>
+    <a data-nav="usage">◑ Usage &amp; quota</a>
+    <div class="sp"><a href="/" style="color:var(--dim)">← interview</a></div>
+  </nav>
+
+  <div class="stats" id="stats"></div>
+  <div class="progress" id="progress"></div>
+
+  <div class="gate" id="gate">
+    <div class="msg"><b>HUMAN GATE</b> — the brain finished planning. Review plan.md + contracts.md, then approve to fan out or reject to re-plan.</div>
+    <div>
+      <button class="ok" onclick="approve(true)">✓ Approve &amp; fan out</button>
+      <button class="no" onclick="approve(false)">✗ Reject / re-plan</button>
+    </div>
+  </div>
+
+  <div class="filters" id="filters">
+    <div class="fgroup" id="fmodel"><span class="fl">model</span></div>
+    <div class="fgroup" id="ftier"><span class="fl">tier</span>
+      <span class="fchip hi" data-tier="high">high</span>
+      <span class="fchip lo" data-tier="low">low</span>
+    </div>
+    <div class="fgroup" id="fphase"><span class="fl">phase</span></div>
+    <span class="fcount" id="fcount"></span>
+    <span class="fclear" id="fclear">× clear filters</span>
+  </div>
+
+  <div class="view on" id="v-board">
+  <div class="tabs" id="tabs">
+    <span class="tab on" data-v="phase">By phase</span>
+    <span class="tab" data-v="domain" id="domTab" style="display:none">By domain</span>
+  </div>
+
+  <div class="board phase" id="board"><div class="empty">No status yet. The coordinator writes <span class="statedir">.swarm</span>/swarm-status.json as nodes progress.</div></div>
+  </div><!-- /v-board -->
+
+  <div class="view" id="v-graph">
+    <div id="graphWrap"><svg id="graph"></svg></div>
+    <div class="glegend">
+      <span><i style="background:#3fb9501a;border:1.5px solid var(--good)"></i>done</span>
+      <span><i style="background:#5b9dff1a;border:1.5px solid var(--accent)"></i>running</span>
+      <span><i style="background:#d299221a;border:1.5px solid var(--warn)"></i>gate</span>
+      <span><i style="background:#f851491a;border:1.5px solid var(--bad)"></i>failed</span>
+      <span><i style="background:var(--panel2);border:1.5px solid var(--line)"></i>pending</span>
+      <span>— columns are dependency depth · arrows point to dependents</span>
+    </div>
+  </div>
+
+  <div class="view" id="v-activity">
+    <div class="panel"><h3>Event log</h3><div id="log"><div class="empty" style="padding:14px">no events yet</div></div></div>
+  </div>
+
+  <div class="view" id="v-usage">
+    <div class="panel"><h3>Tokens by role</h3><div id="tokens"><div class="empty" style="padding:14px">no token data yet</div></div></div>
+    <div class="panel quota"><h3>Provider quota — rolling 5h / weekly</h3><div id="quota"><div class="empty" style="padding:14px">loading…</div></div></div>
+  </div>
+</div>
+
+<script>
+const PHASES=[
+  ["backlog","Backlog"],["planning","Planning"],["waiting_gate","Human gate"],
+  ["implementing","Implementing"],["review","Review / Fix"],["testing","Test / QA"],
+  ["integration","Integration"],["done","Done"],["failed","Failed / Halted"]
+];
+const STATE2COL=s=>({
+  pending:"backlog",queued:"backlog",planning:"planning",plan:"planning",
+  awaiting_approval:"waiting_gate",gate:"waiting_gate",
+  running:"implementing",implementing:"implementing",in_progress:"implementing",escalated:"implementing",
+  review:"review",reviewing:"review",fixing:"review",rereview:"review",
+  testing:"testing",test:"testing",qa:"testing",env_up:"testing",
+  integration:"integration",
+  done:"done",passed:"done",completed:"done",
+  failed:"failed",halted:"failed",blocked:"failed"
+}[String(s||"").toLowerCase()]||"backlog");
+const ACTIVE=["planning","implementing","review","testing","integration"];
+const fmtTok=t=>t==null?'':t>=1e6?(t/1e6).toFixed(1)+'M':t>=1e3?(t/1e3).toFixed(1)+'k':String(t);
+const esc=s=>{const d=document.createElement('div');d.textContent=s??'';return d.innerHTML;};
+
+let view='phase',lastStamp=null,lastSeen=Date.now(),cur={},QUOTA=null;
+
+// ---------- provider quota ----------
+const provOf=model=>/claude|opus|sonnet|haiku|fable/.test(model||'')?'anthropic':
+  /qwen|alibaba|dashscope/.test(model||'')?'alibaba':/glm|zai/.test(model||'')?'zai':
+  /kimi|moonshot/.test(model||'')?'kimi':/gpt|openai/.test(model||'')?'openai':'other';
+const H5=5*3600e3, W7=7*24*3600e3;
+async function loadQuota(){
+  try{QUOTA=await fetch('/api/quota').then(r=>r.json());}catch(e){QUOTA={providers:{}};}
+  renderQuota();
+}
+// Host-agnostic: ask the server where swarm-*.json lives and label it.
+function applyStateDir(dir){
+  if(!dir)return;
+  const short=dir.split('/').filter(Boolean).pop();
+  document.querySelectorAll('.statedir').forEach(el=>{el.textContent=short;});
+}
+async function loadHosts(){
+  try{const h=await fetch('/api/hosts').then(r=>r.json());applyStateDir(h.state_dir);}catch(e){}
+}
+loadHosts();
+function editCap(prov,field){
+  const cur5=QUOTA.providers[prov]?.[field];
+  const v=prompt(`New ${field.replace('cap_','')} token cap for ${prov} (empty = unlimited):`,cur5??'');
+  if(v===null)return;
+  const n=v.trim()===''?null:(+v||0);
+  fetch('/api/quota',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({provider:prov,[field]:n})})
+    .then(()=>loadQuota());
+}
+function renderQuota(){
+  const el=document.getElementById('quota');
+  if(!QUOTA){el.innerHTML='<div class="empty" style="padding:14px">loading…</div>';return;}
+  const usage=cur.usage||[]; // [{provider?,model,session,tokens,ts}] coordinator-written
+  const now=Date.now();
+  const provs=Object.keys(QUOTA.providers||{});
+  // also show providers seen in usage that are not configured
+  usage.forEach(u=>{const p=u.provider||provOf(u.model);
+    if(p&&p!=='other'&&!provs.includes(p))provs.push(p);});
+  if(!provs.length){el.innerHTML='<div class="empty" style="padding:14px">no providers configured</div>';return;}
+  el.innerHTML=provs.map(p=>{
+    const cfg=QUOTA.providers[p]||{metered:true};
+    const ev=usage.filter(u=>(u.provider||provOf(u.model))===p);
+    const inWin=ms=>ev.filter(u=>u.ts&&now-new Date(u.ts).getTime()<ms)
+      .reduce((a,u)=>a+(u.tokens||0),0);
+    const u5=inWin(H5), uw=inWin(W7);
+    const sess={};
+    ev.forEach(u=>{const k=u.session||'?';sess[k]=(sess[k]||0)+(u.tokens||0);});
+    const sessRows=Object.entries(sess).sort((a,b)=>b[1]-a[1])
+      .map(([k,t])=>`<div>session ${esc(k)} — ${fmtTok(t)} tok</div>`).join('')||'no usage recorded';
+    const bar=(label,used,cap)=>{
+      if(cap==null||cap<=0)return `<div class="qbar inf"><div class="lbl"><span>${label}</span><span>∞</span></div>
+        <div class="tb"><i></i></div></div>`;
+      const pct=Math.min(100,100*used/cap);
+      const cls=pct>=100?'over':pct>=75?'hot':'';
+      return `<div class="qbar ${cls}"><div class="lbl"><span>${label}</span><span>${fmtTok(used)} / ${fmtTok(cap)} · ${fmtTok(Math.max(0,cap-used))} left</span></div>
+        <div class="tb"><i style="width:${pct}%"></i></div></div>`;
+    };
+    if(!cfg.metered){
+      // Flat-rate: no cap to burn, so show relative volume (5h vs week) instead.
+      const rel=uw?Math.max(3,Math.round(100*u5/uw)):0;
+      return `<div class="qrow">
+      <div class="qname">${esc(p)}<span class="qp">${esc(cfg.plan||'flat-rate')}</span></div>
+      <div class="qbar inf"><div class="lbl"><span>subscription</span><span>∞ included</span></div><div class="tb"><i></i></div></div>
+      <div class="qbar"><div class="lbl"><span>5h / week</span><span>${fmtTok(u5)} / ${fmtTok(uw)}</span></div>
+        <div class="tb"><i style="width:${rel}%"></i></div></div>
+      <div class="qremain"><b>${fmtTok(u5)||'0'}</b> in 5h
+        <button class="qedit" onclick="document.getElementById('qs-${esc(p)}').classList.toggle('show')">sessions</button></div>
+    </div><div class="qsess" id="qs-${esc(p)}">${sessRows}</div>`;
+    }
+    return `<div class="qrow">
+      <div class="qname">${esc(p)}<span class="qp">${esc(cfg.plan||'metered')}</span></div>
+      ${bar('5h window',u5,cfg.cap_5h)}
+      ${bar('weekly',uw,cfg.cap_week)}
+      <div class="qremain"><b>${fmtTok(u5)||'0'}</b> in 5h
+        <button class="qedit" onclick="document.getElementById('qs-${esc(p)}').classList.toggle('show')">sessions</button>
+        <button class="qedit" onclick="editCap('${esc(p)}','cap_5h')" title="edit 5h cap">✎5h</button>
+        <button class="qedit" onclick="editCap('${esc(p)}','cap_week')" title="edit weekly cap">✎wk</button></div>
+    </div><div class="qsess" id="qs-${esc(p)}">${sessRows}</div>`;
+  }).join('')+'<div style="font:10px var(--mono);color:var(--dim);padding:8px 10px 0">rolling windows · caps are soft guidance; Anthropic meters messages, not tokens</div>';
+}
+
+// ---------- filters ----------
+// tier: models are classified high/low. Heuristic + overrides from status file
+// (st.model_tiers = {"zai:glm-5.2":"low", ...}) win over the heuristic.
+const filters={models:new Set(),tiers:new Set(),phases:new Set()};
+const HI_RX=/opus|fable|gpt-5|o1|max/i, LO_RX=/glm|mini|flash|nano|haiku|lite|qwen|kimi/i;
+function tierOf(model,st){
+  if(!model)return null;
+  const ov=(st.model_tiers||{})[model];
+  if(ov)return ov;
+  if(HI_RX.test(model))return'high';
+  if(LO_RX.test(model))return'low';
+  return'high'; // sonnet-class and unknown default to high
+}
+function nodeVisible(n,st){
+  if(filters.models.size&&!filters.models.has(n.model||''))return false;
+  if(filters.tiers.size&&!filters.tiers.has(tierOf(n.model,st)))return false;
+  if(filters.phases.size&&!filters.phases.has(STATE2COL(n.state)))return false;
+  return true;
+}
+function toggleFilter(set,val,chip){
+  set.has(val)?set.delete(val):set.add(val);
+  chip.classList.toggle('on');
+  render(cur);
+  if(navView==='graph')renderGraph(cur);
+}
+function buildFilterChips(st){
+  const nodes=st.nodes||[];
+  // model chips (rebuilt only when the model list changes)
+  const models=[...new Set(nodes.map(n=>n.model).filter(Boolean))].sort();
+  const fm=document.getElementById('fmodel');
+  if(fm.dataset.sig!==models.join('|')){
+    fm.dataset.sig=models.join('|');
+    fm.innerHTML='<span class="fl">model</span>';
+    models.forEach(m=>{
+      const c=document.createElement('span');
+      c.className='fchip'+(filters.models.has(m)?' on':'');
+      c.textContent=m;
+      c.onclick=()=>toggleFilter(filters.models,m,c);
+      fm.appendChild(c);
+    });
+  }
+  // phase chips, only phases that exist (rebuilt when set changes)
+  const present=[...new Set(nodes.map(n=>STATE2COL(n.state)))];
+  const fp=document.getElementById('fphase');
+  const sig=PHASES.filter(([k])=>present.includes(k)).map(([k])=>k).join('|');
+  if(fp.dataset.sig!==sig){
+    fp.dataset.sig=sig;
+    fp.innerHTML='<span class="fl">phase</span>';
+    PHASES.filter(([k])=>present.includes(k)).forEach(([k,title])=>{
+      const c=document.createElement('span');
+      c.className='fchip'+(filters.phases.has(k)?' on':'');
+      c.textContent=title.toLowerCase();
+      c.onclick=()=>toggleFilter(filters.phases,k,c);
+      fp.appendChild(c);
+    });
+  }
+  // clear + count
+  const active=filters.models.size+filters.tiers.size+filters.phases.size;
+  document.getElementById('fclear').classList.toggle('show',active>0);
+  const vis=nodes.filter(n=>nodeVisible(n,st)).length;
+  document.getElementById('fcount').textContent=active?`${vis}/${nodes.length} shown`:'';
+}
+document.querySelectorAll('#ftier .fchip').forEach(c=>
+  c.onclick=()=>toggleFilter(filters.tiers,c.dataset.tier,c));
+document.getElementById('fclear').onclick=()=>{
+  filters.models.clear();filters.tiers.clear();filters.phases.clear();
+  document.querySelectorAll('.fchip.on').forEach(c=>c.classList.remove('on'));
+  render(cur);
+  if(navView==='graph')renderGraph(cur);
+};
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on');view=t.dataset.v;render(cur);
+});
+
+// ---------- nav ----------
+let navView=location.hash.replace('#','')||'board';
+function setNav(v){
+  navView=v; location.hash=v;
+  document.querySelectorAll('#nav a[data-nav]').forEach(a=>a.classList.toggle('on',a.dataset.nav===v));
+  document.querySelectorAll('.view').forEach(s=>s.classList.toggle('on',s.id==='v-'+v));
+  if(v==='graph')renderGraph(cur);
+}
+document.querySelectorAll('#nav a[data-nav]').forEach(a=>a.onclick=()=>setNav(a.dataset.nav));
+window.addEventListener('hashchange',()=>{const v=location.hash.replace('#','')||'board';if(v!==navView)setNav(v);});
+
+// ---------- task graph (layered DAG, dependency depth = column) ----------
+function layout(nodes){
+  const by={}; nodes.forEach(n=>by[n.id]=n);
+  const deps=n=>(n.depends_on||n.dependsOn||n.deps||[]).filter(d=>by[d]);
+  // longest-path depth with cycle guard
+  const depth={},seen={};
+  const calc=id=>{
+    if(depth[id]!=null)return depth[id];
+    if(seen[id])return 0;            // cycle: treat as root
+    seen[id]=1;
+    const d=deps(by[id]);
+    depth[id]=d.length?Math.max(...d.map(x=>calc(x)+1)):0;
+    return depth[id];
+  };
+  nodes.forEach(n=>calc(n.id));
+  const cols={};
+  nodes.forEach(n=>(cols[depth[n.id]]=cols[depth[n.id]]||[]).push(n));
+  return {cols,depth,deps};
+}
+function renderGraph(st){
+  const wrap=document.getElementById('graphWrap');
+  let svg=document.getElementById('graph');
+  const nodes=(st.nodes||[]).filter(n=>n.id&&nodeVisible(n,st));
+  if(!nodes.length){
+    if(svg)svg.innerHTML='';
+    if(!wrap.querySelector('.empty'))wrap.insertAdjacentHTML('afterbegin',
+      '<div class="empty">No nodes yet. The graph draws itself from <code>depends_on</code> once the coordinator writes tasks.</div>');
+    return;
+  }
+  wrap.querySelector('.empty')?.remove();
+  if(!svg){wrap.insertAdjacentHTML('beforeend','<svg id="graph"></svg>');svg=document.getElementById('graph');}
+  const {cols,deps}=layout(nodes);
+  const W=210,H=54,GX=86,GY=20,PAD=26;
+  const pos={};
+  const depths=Object.keys(cols).map(Number).sort((a,b)=>a-b);
+  let maxRows=0;
+  depths.forEach((d,ci)=>{
+    cols[d].forEach((n,ri)=>{pos[n.id]={x:PAD+ci*(W+GX),y:PAD+18+ri*(H+GY),d};});
+    maxRows=Math.max(maxRows,cols[d].length);
+  });
+  const width=PAD*2+depths.length*(W+GX)-GX, height=PAD*2+24+maxRows*(H+GY);
+  const colOf=n=>{const c=STATE2COL(n.state);
+    return c==='done'?'done':c==='failed'?'failed':c==='waiting_gate'?'gate':ACTIVE.includes(c)?'running':'';};
+  let edges='',boxes='',lanes='';
+  depths.forEach((d,ci)=>{
+    lanes+=`<text class="lane" x="${PAD+ci*(W+GX)}" y="${PAD+4}">depth ${d} · ${cols[d].length}</text>`;
+  });
+  nodes.forEach(n=>{
+    deps(n).forEach(p=>{
+      const a=pos[p],b=pos[n.id]; if(!a||!b)return;
+      const x1=a.x+W,y1=a.y+H/2,x2=b.x,y2=b.y+H/2,mx=(x1+x2)/2;
+      const pdone=STATE2COL((nodes.find(z=>z.id===p)||{}).state)==='done';
+      const cls=colOf(n)==='running'?'hot':(!pdone&&colOf(n)==='')?'blocked':'';
+      edges+=`<path class="edge ${cls}" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+    });
+  });
+  nodes.forEach(n=>{
+    const p=pos[n.id]; if(!p)return;
+    const name=(n.content||n.name||'').slice(0,26);
+    const sub=[n.role,n.domain].filter(Boolean).join(' · ').slice(0,30);
+    const m=(n.model||'').slice(0,24);
+    boxes+=`<g class="gn ${colOf(n)}"><title>${esc(n.id)} — ${esc(n.content||'')}
+state: ${esc(n.state||'')}${n.model?'\nmodel: '+esc(n.model):''}${n.attempts>1?'\nattempts: '+n.attempts:''}${n.tokens?'\ntokens: '+fmtTok(n.tokens):''}</title>
+      <rect x="${p.x}" y="${p.y}" width="${W}" height="${H}"/>
+      <text x="${p.x+10}" y="${p.y+17}">${esc(name)}</text>
+      <text class="sub" x="${p.x+10}" y="${p.y+31}">${esc(sub)}</text>
+      <text class="sub" x="${p.x+10}" y="${p.y+44}">${esc(m)}${n.escalated?' ⚠':''}${n.tokens?' · '+fmtTok(n.tokens):''}</text>
+    </g>`;
+  });
+  svg.setAttribute('viewBox',`0 0 ${width} ${height}`);
+  svg.setAttribute('width',width); svg.setAttribute('height',height);
+  svg.innerHTML=`<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+      markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,1 L9,5 L0,9 z" fill="var(--line)"/></marker></defs>
+    ${lanes}${edges}${boxes}`;
+}
+
+async function tick(){
+  try{
+    const st=await fetch('/api/status').then(r=>r.json());
+    if(st&&st.updated){
+      if(st.updated!==lastStamp){lastStamp=st.updated;lastSeen=Date.now();}
+      const age=(Date.now()-lastSeen)/1000;
+      const p=document.getElementById('pulse');
+      p.textContent=age<30?`● live`:`● stale ${Math.round(age)}s`;
+      p.className='pulse'+(age<30?'':' stale');
+      cur=st;render(st);renderQuota();
+      if(navView==='graph')renderGraph(st);
+    }
+  }catch(e){}
+  setTimeout(tick,2000);
+}
+
+function taskCard(n,showDomain){
+  const col=STATE2COL(n.state);
+  const cls=col==='done'?'done':col==='failed'?'failed':col==='waiting_gate'?'gate':
+    ACTIVE.includes(col)?'running':'';
+  const role=(n.role||'').toLowerCase();
+  const rcls=role.startsWith('impl')?'role-impl':role.startsWith('review')?'role-review':
+    role.startsWith('test')||role.startsWith('qa')?'role-test':role==='brain'?'role-brain':'';
+  return `<div class="task ${cls}">
+    <div class="id">${esc(n.id||'')}</div>
+    <div class="name">${esc(n.content||n.name||'')}</div>
+    <div class="meta">
+      ${n.role?`<span class="pill ${rcls}">${esc(n.role)}</span>`:''}
+      ${n.model?`<span class="pill">${esc(n.model)}<span style="color:${tierOf(n.model,cur)==='high'?'var(--purple)':'var(--good)'};margin-left:4px">${tierOf(n.model,cur)==='high'?'▲':'▽'}</span></span>`:''}
+      ${showDomain&&n.domain?`<span class="pill">${esc(n.domain)}</span>`:''}
+      ${n.tokens?`<span class="pill tok">${fmtTok(n.tokens)} tok</span>`:''}
+      ${n.attempts>1?`<span class="pill esc">attempt ${n.attempts}</span>`:''}
+      ${n.escalated?`<span class="pill esc">escalated</span>`:''}
+    </div>
+    <div class="st">${esc(n.state||'')}</div>
+  </div>`;
+}
+
+function render(st){
+  document.getElementById('proj').textContent=st.project||'—';
+  const allNodes=st.nodes||[];
+  buildFilterChips(st);
+  const nodes=allNodes.filter(n=>nodeVisible(n,st));
+  // ----- stats (tokens, no dollars) -----
+  const c={done:0,failed:0,run:0,gate:0};
+  nodes.forEach(n=>{const col=STATE2COL(n.state);
+    if(col==='done')c.done++;else if(col==='failed')c.failed++;
+    else if(col==='waiting_gate')c.gate++;
+    else if(ACTIVE.includes(col))c.run++;});
+  const total=nodes.length,pct=total?Math.round(100*c.done/total):0;
+  const tokTotal=st.tokens_total??Object.values(st.costs||{}).reduce((a,v)=>a+(v.tokens||0),0);
+  document.getElementById('stats').innerHTML=`
+    <div class="stat b"><b>${total}</b><span>nodes</span></div>
+    <div class="stat b"><b>${c.run}</b><span>active</span></div>
+    <div class="stat g"><b>${c.done}</b><span>done</span></div>
+    <div class="stat r"><b>${c.failed}</b><span>failed</span></div>
+    <div class="stat y"><b>${st.escalations??0}</b><span>escalations</span></div>
+    <div class="stat"><b>${pct}%</b><span>progress</span></div>
+    ${tokTotal?`<div class="stat c"><b>${fmtTok(tokTotal)}</b><span>tokens</span></div>`:''}`;
+  // ----- nav badges -----
+  document.getElementById('nbBoard').textContent=total;
+  document.getElementById('nbGraph').textContent=total;
+  document.getElementById('nbLog').textContent=(st.events||[]).length;
+  // progress bar
+  const runPct=total?100*c.run/total:0,failPct=total?100*c.failed/total:0;
+  document.getElementById('progress').innerHTML=
+    `<i class="p-done" style="width:${pct}%"></i><i class="p-run" style="width:${runPct}%"></i><i class="p-fail" style="width:${failPct}%"></i>`;
+  // gate
+  const gateOpen=nodes.some(n=>STATE2COL(n.state)==='waiting_gate')||st.gate==='waiting';
+  document.getElementById('gate').classList.toggle('show',gateOpen);
+  // domain tab visibility
+  const domains=[...new Set(nodes.map(n=>n.domain).filter(Boolean))];
+  document.getElementById('domTab').style.display=domains.length>1?'':'none';
+  if(domains.length<2&&view==='domain'){view='phase';
+    document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.v==='phase'));}
+  // ----- boards -----
+  const board=document.getElementById('board');
+  board.className='board '+view;board.innerHTML='';
+  if(view==='phase'){
+    PHASES.forEach(([key,title])=>{
+      const items=nodes.filter(n=>STATE2COL(n.state)===key);
+      if(filters.phases.size&&!filters.phases.has(key))return;
+      if(!filters.phases.size){
+        if(key==='waiting_gate'&&!items.length&&!gateOpen)return;
+        if(key==='integration'&&!items.length)return;
+      }
+      const col=document.createElement('div');
+      col.className='col '+(key==='failed'?'failed':key==='done'?'done':key==='waiting_gate'?'gatec':
+        ACTIVE.includes(key)?'running':'');
+      col.innerHTML=`<h3><span class="dot"></span>${title}<span class="n">${items.length}</span></h3>`
+        +items.map(n=>taskCard(n,true)).join('');
+      board.appendChild(col);
+    });
+  }else{
+    // by domain: one column per domain, lanes = phase groups inside
+    const groups=[...domains,null];
+    groups.forEach(dom=>{
+      const items=nodes.filter(n=>(n.domain||null)===dom);
+      if(!items.length)return;
+      const done=items.filter(n=>STATE2COL(n.state)==='done').length;
+      const fail=items.filter(n=>STATE2COL(n.state)==='failed').length;
+      const run=items.filter(n=>ACTIVE.includes(STATE2COL(n.state))).length;
+      const dtok=items.reduce((a,n)=>a+(n.tokens||0),0);
+      const col=document.createElement('div');
+      col.className='col '+(fail?'failed':run?'running':done===items.length?'done':'');
+      col.innerHTML=`<div class="dhead"><span class="dot" style="width:8px;height:8px;border-radius:50%;background:${fail?'var(--bad)':run?'var(--accent)':'var(--good)'}"></span>
+        <span class="dn">${esc(dom||'coordination')}</span>
+        <span class="dm">${done}/${items.length}${dtok?' · '+fmtTok(dtok)+' tok':''}</span></div>
+        <div class="dbar">
+          <i style="width:${100*done/items.length}%;background:var(--good)"></i>
+          <i style="width:${100*run/items.length}%;background:var(--accent)"></i>
+          <i style="width:${100*fail/items.length}%;background:var(--bad)"></i></div>`;
+      const laneOrder=[["active","In progress",n=>ACTIVE.includes(STATE2COL(n.state))||STATE2COL(n.state)==='waiting_gate'],
+                       ["todo","Queued",n=>STATE2COL(n.state)==='backlog'],
+                       ["done","Done",n=>STATE2COL(n.state)==='done'],
+                       ["failed","Failed",n=>STATE2COL(n.state)==='failed']];
+      laneOrder.forEach(([k,title,fn])=>{
+        const ls=items.filter(fn);
+        if(!ls.length)return;
+        col.innerHTML+=`<div class="lane"><div class="lt">${title} · ${ls.length}</div>${ls.map(n=>taskCard(n,false)).join('')}</div>`;
+      });
+      board.appendChild(col);
+    });
+  }
+  // ----- log -----
+  const log=document.getElementById('log');
+  const evs=st.events||[];
+  if(evs.length){
+    log.innerHTML=evs.slice(-80).map(e=>{
+      const cls=/fail|halt|error/i.test(e.msg||'')?'bad':/pass|done|approv|complete/i.test(e.msg||'')?'ok':/escalat|gap|retry/i.test(e.msg||'')?'wr':'';
+      return `<div><span class="t">${esc(e.time||'')}</span>  <span class="${cls}">${esc(e.msg||'')}</span></div>`;
+    }).join('');
+    log.scrollTop=log.scrollHeight;
+  }
+  // ----- tokens by role (bars, no dollars) -----
+  const costs=st.costs||{};
+  const entries=Object.entries(costs).filter(([,v])=>v.tokens);
+  if(entries.length){
+    const max=Math.max(...entries.map(([,v])=>v.tokens));
+    document.getElementById('tokens').innerHTML=entries
+      .sort((a,b)=>b[1].tokens-a[1].tokens)
+      .map(([r,v])=>`<div class="trow"><span class="rn" title="${esc(r)}">${esc(r)}</span>
+        <span class="tb"><i style="width:${100*v.tokens/max}%"></i></span>
+        <span class="tv">${fmtTok(v.tokens)}</span></div>`).join('')
+      +`<div class="trow" style="border-top:1px solid var(--line);padding-top:8px;margin-top:4px">
+        <span class="rn"><b>total</b></span><span class="tb"></span>
+        <span class="tv"><b>${fmtTok(entries.reduce((a,[,v])=>a+v.tokens,0))}</b></span></div>`;
+  }
+}
+
+async function approve(ok){
+  const note=ok?'':prompt('Reason for rejection (goes back to the brain):')||'';
+  await fetch('/api/approve',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({approved:ok,note,time:new Date().toISOString()})});
+  document.getElementById('gate').classList.remove('show');
+}
+tick();
+loadQuota();
+setNav(navView);
+</script>
+</body>
+</html>
