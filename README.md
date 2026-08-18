@@ -1,4 +1,4 @@
-# swarm-setup
+# swarm-setup-agent-skill
 
 An agent skill that turns a repo into a multi-model agent team. It interviews
 you (in the browser or in chat), then writes a per-project routing policy that
@@ -29,21 +29,21 @@ BRAIN (strong)  ->  CRITIC (cheap)  ->  HUMAN GATE
  INTEGRATION GATE (seams between domains) -> ship | rollback
 ```
 
-`swarm-setup` is how you describe that team once, per project, and keep it.
+`swarm-setup-agent-skill` is how you describe that team once, per project, and keep it.
 
 ## Install
 
 Clone once, then symlink into whichever hosts you use.
 
 ```bash
-git clone https://github.com/<you>/swarm-setup ~/.agents/skills/swarm-setup
-S=~/.agents/skills/swarm-setup
+git clone https://github.com/Bilel-Gharbi/swarm-setup-agent-skill ~/.agents/skills/swarm-setup-agent-skill
+S=~/.agents/skills/swarm-setup-agent-skill
 
-ln -s $S ~/.jcode/skills/swarm-setup             # jcode
-ln -s $S ~/.claude/skills/swarm-setup            # Claude Code
-ln -s $S ~/.config/opencode/skills/swarm-setup   # opencode
-ln -s $S ~/.codex/skills/swarm-setup             # codex
-ln -s $S ~/.pi/agent/skills/swarm-setup          # pi
+ln -s $S ~/.jcode/skills/swarm-setup-agent-skill             # jcode
+ln -s $S ~/.claude/skills/swarm-setup-agent-skill            # Claude Code
+ln -s $S ~/.config/opencode/skills/swarm-setup-agent-skill   # opencode
+ln -s $S ~/.codex/skills/swarm-setup-agent-skill             # codex
+ln -s $S ~/.pi/agent/skills/swarm-setup-agent-skill          # pi
 ```
 
 Requirements: `python3`, plus `node` for the tests. Nothing else, no packages.
@@ -94,7 +94,7 @@ else an existing `.jcode/`, else `.swarm/`.
 In a jcode session at your project root:
 
 ```
-/swarm-setup
+/swarm-setup-agent-skill
 ```
 
 The agent runs the sequence below for you. These are the exact commands, if you
@@ -122,7 +122,7 @@ that unblocks them.
 ### 2. Serve the interview and dashboard
 
 ```bash
-SKILL_DIR=~/.agents/skills/swarm-setup
+SKILL_DIR=~/.agents/skills/swarm-setup-agent-skill
 python3 $SKILL_DIR/scripts/serve.py --port 7777 --project-dir . --state-dir .swarm
 ```
 
@@ -222,7 +222,7 @@ the same team. Add the rest to `.gitignore`.
 
 ## Example: `.swarm/swarm-answers.json`
 
-Drop this into any repo's state dir and `/swarm-setup` skips the interview
+Drop this into any repo's state dir and `/swarm-setup-agent-skill` skips the interview
 entirely, only asking about fields that are missing or invalid. The file is
 host-independent, so the same team definition works under jcode, pi, opencode,
 or codex.
@@ -231,7 +231,7 @@ or codex.
 {
   "_format": "swarm-answers/v1",
   "generated": "2026-08-18T13:40:00.000Z",
-  "project": "escavida",
+  "project": "acme-shop",
   "topology": "multi-repo",
   "spec": {
     "mode": "ingest",
@@ -287,7 +287,7 @@ This is the output. The filename depends on the host (`.jcode/swarm-prompt.md`,
 a prompt into every session started in this repo.
 
 ```markdown
-<!-- Swarm policy for escavida — generated 2026-08-18 -->
+<!-- Swarm policy for acme-shop — generated 2026-08-18 -->
 
 ## Roles
 
@@ -349,7 +349,7 @@ collapses into one flat column.
 
 ```json
 {
-  "project": "escavida",
+  "project": "acme-shop",
   "updated": "2026-08-18T14:02:11Z",
   "gate": "approved",
   "escalations": 1,
@@ -427,10 +427,71 @@ costs.md          per-role /cost-report numbers after each run
 - **Mermaid only for diagrams.** Auto-layout, renders natively in jcode and
   Obsidian, near-zero tokens.
 
+## Security model
+
+The server is a local convenience UI, not a hardened service. Its threat model:
+
+- **Binds to 127.0.0.1 only.** It is never reachable from the network. Do not
+  reverse-proxy it to the internet; it has no auth.
+- **CSRF / DNS-rebinding guarded.** State-changing POSTs (`/api/answers`,
+  `/api/approve`, `/api/quota`) reject any non-localhost `Origin` or `Host`, so
+  a malicious web page open in your browser cannot auto-approve the human gate.
+  Requests without an Origin (curl, the agent) are allowed. POST bodies are
+  capped at 2 MB.
+- **Rendered content is escaped.** Both pages HTML-escape everything read from
+  status/answers/skill files, so a hostile `swarm-status.json` committed to a
+  repo you cloned cannot script the dashboard.
+- **The server writes only `swarm-*.json` inside the state dir.** It never
+  executes anything and never touches your code.
+- **The real risk is not this server.** It is the agents the policy spawns:
+  they run with your shell, your credentials, and your git. The human gate,
+  bounded reviewer context, and halt-on-repeated-failure rules exist for that
+  reason. Keep the gate on for anything that can reach production.
+
+## What it covers, and what it does not
+
+Covered:
+
+- Role/model/effort routing per project, written once, loaded every session.
+- Cheap-implementer / strong-reviewer separation, with the writer-never-approves
+  rule extended to the fixer (delta re-review).
+- Dependency-ordered fan-out, per-branch review/fix/test/QA, and a terminal
+  integration gate across domains.
+- Two human gates (plan approval, dashboard verdict) with zero-token waiting.
+- Live kanban, task DAG, event log, and per-provider quota tracking.
+- Escalation with carried-forward failure artifacts, timeboxes, and
+  halt-and-ask-human as the terminal state.
+- Multi-repo and monorepo topologies, including the parallel-writer worktree rule.
+- Spec ingestion, design ingestion, durable `architecture.md`, cost telemetry.
+
+Not covered, by design or honestly not yet:
+
+- **Enforcement on non-native hosts.** Outside jcode, `depends_on`, concurrency
+  caps, and timeboxes are conventions the coordinating agent must follow, not
+  mechanisms. A sloppy coordinator can ignore the policy; nothing blocks it.
+- **Hard budget enforcement.** Quota caps are advisory routing signals. Nothing
+  kills a run at a spend threshold. Watch the usage panel for long runs.
+- **Token/cost accounting accuracy.** Usage numbers are whatever the
+  coordinator reports. Anthropic meters messages, not tokens, so those caps are
+  soft guidance either way.
+- **Merge conflicts and shared-file races beyond the stated rules.** The
+  worktree/sequencing rule is written into the policy, but nothing technically
+  prevents two agents writing one tree if the coordinator disobeys.
+- **Secrets management.** Agents inherit your environment. The skill does not
+  scrub env vars, and a prompt-injected dependency could exfiltrate through any
+  spawned agent. Scope credentials before running swarms on untrusted code.
+- **Sandboxing.** No container, no filesystem jail. Use your host's sandbox
+  flags (e.g. codex sandbox modes) if you need one.
+- **Multi-machine or multi-user coordination.** One project dir, one machine,
+  one human. State files are not locked; concurrent human edits can race the
+  coordinator's rewrites.
+- **Windows.** Untested. The server is pure stdlib and should run, but the
+  documented commands assume a POSIX shell.
+
 ## Tests
 
 ```bash
-~/.agents/skills/swarm-setup/tests/run.sh
+~/.agents/skills/swarm-setup-agent-skill/tests/run.sh
 ```
 
 Node plus python3, no packages. Covers syntax, a structural audit of the HTML

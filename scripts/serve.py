@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""swarm-setup live server: interview form + kanban dashboard.
+"""swarm-setup-agent-skill live server: interview form + kanban dashboard.
 
 Stdlib only. Token-free by design: the model launches this once in the
 background and does ONE blocking wait; the browser does all the polling.
@@ -180,6 +180,7 @@ def load_quota(state_dir: Path):
 class Handler(BaseHTTPRequestHandler):
     project_dir = Path(".")
     state_dir = Path(".swarm")
+    MAX_BODY = 2 * 1024 * 1024  # 2 MB is plenty for any answers/quota payload
 
     def _send(self, code, body, ctype="application/json"):
         data = body if isinstance(body, bytes) else json.dumps(body).encode()
@@ -189,6 +190,26 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
+
+    def _local_request(self):
+        """CSRF / DNS-rebinding guard for state-changing requests.
+
+        The server is loopback-only, but a malicious web page in the user's
+        browser could still POST to http://127.0.0.1:<port>/api/approve and
+        auto-approve the human gate. Browsers always attach an Origin header
+        to cross-origin POSTs, so: reject any Origin/Host that is not
+        localhost. Requests without Origin (curl, the agent) are allowed.
+        """
+        host = (self.headers.get("Host") or "")
+        host = host.split("]")[0] + "]" if host.startswith("[") else host.split(":")[0]
+        if host not in ("127.0.0.1", "localhost", "[::1]", ""):
+            return False
+        origin = self.headers.get("Origin")
+        if origin:
+            m = re.match(r"https?://(\[[^\]]+\]|[^/:]+)", origin)
+            if not m or m.group(1) not in ("127.0.0.1", "localhost", "[::1]"):
+                return False
+        return True
 
     def _file(self, name):
         p = ASSETS / name
@@ -228,7 +249,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send(404, {"error": "not found"})
 
     def do_POST(self):
-        n = int(self.headers.get("Content-Length", 0))
+        if not self._local_request():
+            return self._send(403, {"error": "cross-origin request rejected"})
+        try:
+            n = int(self.headers.get("Content-Length", 0))
+        except ValueError:
+            return self._send(400, {"error": "bad content-length"})
+        if n > self.MAX_BODY:
+            return self._send(413, {"error": "body too large"})
         try:
             body = json.loads(self.rfile.read(n) or b"{}")
         except json.JSONDecodeError:
@@ -298,7 +326,7 @@ def main():
     Handler.project_dir = project
     Handler.state_dir = state
     srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    print(f"swarm-setup server on http://127.0.0.1:{args.port}"
+    print(f"swarm-setup-agent-skill server on http://127.0.0.1:{args.port}"
           f"  (project: {project}, state: {state})")
     try:
         srv.serve_forever()

@@ -1,5 +1,5 @@
 ---
-name: swarm-setup
+name: swarm-setup-agent-skill
 description: Interactively design a per-project multi-model swarm team and write a routing policy the host agent auto-loads (jcode, Claude Code, opencode, codex, pi, cursor). Use for "set up a swarm", "configure my agents for this project", "who is the brain model", "assign models to roles", or "use my spec draft".
 ---
 
@@ -21,7 +21,7 @@ FILENAME and the fan-out MECHANISM.
 Detect the host first. You usually know which agent you are; if not, run:
 
 ```bash
-python3 ~/.jcode/skills/swarm-setup/scripts/serve.py --detect-hosts
+python3 ~/.jcode/skills/swarm-setup-agent-skill/scripts/serve.py --detect-hosts
 ```
 
 It prints the resolved state directory and every agent CLI installed on this
@@ -150,12 +150,12 @@ gives for free. YOU must supply them, or the policy is decorative:
 
 ## Quickstart command reference
 
-All commands below are verified. `SKILL_DIR` is `~/.jcode/skills/swarm-setup`.
+All commands below are verified. `SKILL_DIR` is `~/.jcode/skills/swarm-setup-agent-skill`.
 Run everything from the PROJECT ROOT. The user invokes the skill as
-`/swarm-setup`; these are the commands YOU run to serve it.
+`/swarm-setup-agent-skill`; these are the commands YOU run to serve it.
 
 ```bash
-SKILL_DIR=~/.jcode/skills/swarm-setup
+SKILL_DIR=~/.jcode/skills/swarm-setup-agent-skill
 
 # 1. INIT — create .jcode/ and export live model routes for the form.
 #    Get the routes from the `swarm list_models` tool, then write the file.
@@ -582,7 +582,7 @@ uses a monorepo.
 
 Shared coordination artifacts (constitution/spec/plan/tasks/design) need a home:
 - MULTI-REPO: put them in a dedicated coordinator folder (the directory where
-  `/swarm-setup` runs, or a small `project-control/` repo) rather than
+  `/swarm-setup-agent-skill` runs, or a small `project-control/` repo) rather than
   duplicating across the domain repos. Each domain repo may keep a short
   `AGENTS.md` pointer back to it. Record this location in `## Artifacts`.
 - MONOREPO: keep them in `./.jcode/` at the repo root as normal.

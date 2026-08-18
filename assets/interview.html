@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>swarm-setup — Interview</title>
+<title>swarm-setup-agent-skill — Interview</title>
 <style>
   :root{--bg:#0d0f12;--panel:#14181d;--panel2:#1a1f26;--line:#252c35;--text:#e6eaef;
     --muted:#8b96a5;--dim:#5f6b7a;--accent:#5b9dff;--good:#3fb950;--warn:#d29922;
@@ -68,7 +68,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>swarm-setup interview</h1>
+  <h1>swarm-setup-agent-skill interview</h1>
   <p class="sub">Submit writes <code style="font-family:var(--mono)"><span class="statedir">.swarm</span>/swarm-answers.json</code> straight into your project. The waiting agent picks it up instantly.</p>
   <p class="live" id="livestat">connecting…</p>
   <button class="btn ghost" style="margin-top:8px" onclick="applyRecs()">★ apply recommended models (budget-aware)</button>
@@ -218,6 +218,7 @@
 
 <script>
 let SKILLS=[], MODELS=[], pickerTarget=null;
+const esc=s=>{const d=document.createElement('div');d.textContent=s??'';return d.innerHTML;};
 
 // Host-agnostic: the server tells us where swarm-*.json actually lives
 // (.jcode/ under jcode, .swarm/ elsewhere). Paint it into the page.
@@ -321,7 +322,7 @@ function addChip(box,name){
   if([...box.children].some(c=>c.dataset.s===name))return;
   const c=document.createElement('span');
   c.className='chip on'; c.dataset.s=name;
-  c.innerHTML=`${name}<span class="x">×</span>`;
+  c.innerHTML=`${esc(name)}<span class="x">×</span>`;
   c.querySelector('.x').onclick=e=>{e.stopPropagation();c.remove();};
   const add=box.querySelector('.add');
   box.insertBefore(c,add||null);
@@ -349,7 +350,7 @@ function renderList(q){
   hits.slice(0,120).forEach(s=>{
     const r=document.createElement('div');
     r.className='srow'+(on.has(s.name)?' sel':'');
-    r.innerHTML=`<span class="nm">${s.name}</span><span class="ds">${s.description||''}</span><span class="tick">✓</span>`;
+    r.innerHTML=`<span class="nm">${esc(s.name)}</span><span class="ds">${esc(s.description||'')}</span><span class="tick">✓</span>`;
     r.onclick=()=>{
       if(r.classList.contains('sel')){
         r.classList.remove('sel');
@@ -376,8 +377,8 @@ function addDomain(name,path){
   div.innerHTML=`
     <button class="del" onclick="this.parentNode.remove()">×</button>
     <div class="row3">
-      <div><label>Domain</label><input type="text" class="dname" value="${name||''}" placeholder="backend"></div>
-      <div><label>Folder / working_dir</label><input type="text" class="dpath" value="${path||''}" placeholder="./api"></div>
+      <div><label>Domain</label><input type="text" class="dname" value="${esc(name||'')}" placeholder="backend"></div>
+      <div><label>Folder / working_dir</label><input type="text" class="dpath" value="${esc(path||'')}" placeholder="./api"></div>
       <div class="model-sel"><label>Model</label><select class="model"></select><div class="unavail"></div></div>
     </div>
     <label>Skills</label><div class="chips skillbox"></div>`;

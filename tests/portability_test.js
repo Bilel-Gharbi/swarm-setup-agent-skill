@@ -41,6 +41,13 @@ for (const f of ['assets/interview.html', 'assets/dashboard.html']) {
   ok(/function applyStateDir\(/.test(h), `${f} resolves state dir at runtime`);
 }
 
+
+console.log('\n--- server hardening ---');
+ok(/def _local_request\(/.test(py), 'CSRF/DNS-rebinding guard exists');
+ok(/MAX_BODY/.test(py), 'POST body size cap exists');
+ok(/_send\(403/.test(py), 'cross-origin POST rejected with 403');
+ok(/127\.0\.0\.1", args\.port/.test(py), 'server binds loopback only');
+
 console.log('\n--- docs describe the adapters ---');
 const skill = fs.readFileSync(path.join(root, 'SKILL.md'), 'utf8');
 ok(/## Host adapters/.test(skill), 'SKILL.md has a Host adapters section');
