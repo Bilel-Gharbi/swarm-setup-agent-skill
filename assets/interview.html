@@ -22,6 +22,15 @@
     border:1px solid var(--line);border-radius:7px;color:var(--text);padding:8px 10px;
     font:13px var(--mono);outline:none}
   input:focus,select:focus{border-color:var(--accent)}
+  textarea{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);
+    border-radius:8px;padding:9px 11px;font-size:13.5px;font-family:inherit;outline:none;
+    resize:vertical;min-height:84px}
+  textarea:focus{border-color:var(--accent)}
+  .dropzone{border:1.5px dashed var(--line);border-radius:8px;padding:10px 12px;font-size:12.5px;
+    color:var(--muted);cursor:pointer;text-align:center;transition:.15s}
+  .dropzone:hover,.dropzone.drag{border-color:var(--accent);color:var(--text)}
+  .dropzone.loaded{border-style:solid;border-color:var(--good);color:var(--good)}
+  .suggest-note{font-size:12px;color:var(--accent);margin-top:8px;min-height:16px;white-space:pre-line}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .row3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
@@ -83,6 +92,14 @@
           <option value="monorepo">monorepo (one git tree)</option>
         </select></div>
     </div>
+    <label style="margin-top:12px">Project brief <span class="small">(what are you building? plain words)</span></label>
+    <textarea id="brief" placeholder="e.g. A food delivery app: React web dashboard, Express API with Postgres, React Native mobile app for couriers. MVP in 3 weeks, small budget."></textarea>
+    <label style="margin-top:12px">Spec draft <span class="small">(optional — drop a .md file or paste below; fills spec mode automatically)</span></label>
+    <div class="dropzone" id="specdrop">drop spec.md here, or click to choose a file</div>
+    <input type="file" id="specfile" accept=".md,.markdown,.txt" style="display:none">
+    <textarea id="spectext" style="margin-top:8px;min-height:60px" placeholder="…or paste your spec/notes here"></textarea>
+    <button class="btn" style="margin-top:12px" onclick="suggestTeam()">✨ Suggest team (models + coding agents)</button>
+    <div class="suggest-note" id="suggestnote"></div>
   </div>
 
   <h2>Brain (planner / architect)</h2>
@@ -218,6 +235,8 @@
 
 <script>
 let SKILLS=[], MODELS=[], pickerTarget=null;
+let HOSTSDATA=[];   // live-detected agent CLIs from /api/hosts
+let SPEC={text:'',filename:null};
 const esc=s=>{const d=document.createElement('div');d.textContent=s??'';return d.innerHTML;};
 
 // Host-agnostic: the server tells us where swarm-*.json actually lives
@@ -238,6 +257,7 @@ async function boot(){
     ]);
     SKILLS=sk; MODELS=mo.models||[];
     applyStateDir(ho.state_dir);
+    HOSTSDATA=(ho.hosts||[]).filter(h=>h.installed);
     const live=(ho.hosts||[]).filter(h=>h.installed).map(h=>h.id);
     document.getElementById('livestat').textContent=
       `● live — ${SKILLS.length} skills scanned, ${MODELS.length} model routes`
@@ -247,10 +267,103 @@ async function boot(){
     document.getElementById('livestat').textContent='○ offline — open via serve.py for live skills/models';
     document.getElementById('livestat').style.color='var(--warn)';
   }
-  fillModels(); initRoles();
+  fillModels(); initRoles(); initAgentSelects(); initSpecInputs();
   // restore previous answers if any
   try{const prev=await fetch('/api/answers').then(r=>r.json());
       if(prev&&prev.project)document.getElementById('project').value=prev.project;}catch(e){}
+}
+
+// ---------- execution agent (which CLI runs each role) ----------
+// The model decides WHAT thinks; the agent decides WHICH HARNESS runs it.
+// Native cross-provider CLIs (jcode, pi, opencode) can run any route; Claude
+// Code runs Anthropic natively and other routes only via delegation/env-route.
+function agentsForRoute(route){
+  const anthropic=/claude|opus|sonnet|haiku|fable/.test(route||'');
+  return HOSTSDATA.map(h=>({id:h.id,
+    fit:h.id==='jcode'?3:(h.id==='pi'||h.id==='opencode')?2:
+        (h.id==='claude'?(anthropic?3:1):(h.id==='codex'?(/gpt/.test(route||'')?2:1):1))}));
+}
+function bestAgent(route){
+  const a=agentsForRoute(route).sort((x,y)=>y.fit-x.fit)[0];
+  return a?a.id:null;
+}
+function initAgentSelects(){
+  document.querySelectorAll('.model-sel').forEach(ms=>{
+    if(ms.querySelector('select.agent'))return;
+    const wrap=document.createElement('div');
+    wrap.innerHTML=`<label>Coding agent</label><select class="agent"></select>`;
+    const sel=wrap.querySelector('select');
+    HOSTSDATA.forEach(h=>{const o=document.createElement('option');o.value=h.id;o.textContent=h.id;sel.appendChild(o);});
+    if(!HOSTSDATA.length){const o=document.createElement('option');o.value='';o.textContent='(none detected)';sel.appendChild(o);}
+    ms.parentNode.insertBefore(wrap,ms.nextSibling);
+    const msel=ms.querySelector('select.model');
+    if(msel){const b=bestAgent(msel.value); if(b)sel.value=b;
+      msel.addEventListener('change',()=>{const nb=bestAgent(msel.value); if(nb)sel.value=nb;});}
+  });
+}
+
+// ---------- spec upload / paste ----------
+function initSpecInputs(){
+  const dz=document.getElementById('specdrop'), fi=document.getElementById('specfile'),
+        ta=document.getElementById('spectext');
+  const load=f=>{const r=new FileReader();
+    r.onload=()=>{SPEC={text:String(r.result||''),filename:f.name};
+      ta.value=SPEC.text.slice(0,20000);
+      dz.classList.add('loaded'); dz.textContent=`✓ ${f.name} (${(f.size/1024).toFixed(1)} KB)`;
+      setSpecMode('ingest');};
+    r.readAsText(f);};
+  dz.onclick=()=>fi.click();
+  fi.onchange=()=>{if(fi.files[0])load(fi.files[0]);};
+  dz.ondragover=e=>{e.preventDefault();dz.classList.add('drag');};
+  dz.ondragleave=()=>dz.classList.remove('drag');
+  dz.ondrop=e=>{e.preventDefault();dz.classList.remove('drag');if(e.dataTransfer.files[0])load(e.dataTransfer.files[0]);};
+  ta.oninput=()=>{SPEC={text:ta.value,filename:SPEC.filename}; if(ta.value.trim())setSpecMode('ingest');};
+}
+function setSpecMode(v){document.querySelectorAll('#specmode .chip').forEach(c=>
+  c.classList.toggle('on',c.dataset.v===v));}
+
+// ---------- suggest team from the brief (client-side, zero tokens) ----------
+const DOMAIN_SIGNALS={
+  backend: {re:/\b(api|backend|server|express|fastapi|django|rails|laravel|postgres|mysql|mongo|database|graphql|rest|microservice|auth)\b/i, path:'./api'},
+  frontend:{re:/\b(frontend|web app|website|dashboard|react(?!\s*native)|vue|svelte|angular|next\.?js|nuxt|tailwind|ui\b|landing)\b/i, path:'./web'},
+  mobile:  {re:/\b(mobile|ios|android|react\s*native|flutter|expo|swiftui|kotlin|app\s*store|courier app|phone app)\b/i, path:'./mobile'},
+};
+function suggestTeam(){
+  const brief=(document.getElementById('brief').value+' '+SPEC.text.slice(0,4000));
+  const notes=[];
+  if(!brief.trim()){document.getElementById('suggestnote').textContent='Write a short brief (or paste a spec) first.';return;}
+  // 1. domains from the brief
+  const found=Object.entries(DOMAIN_SIGNALS).filter(([,s])=>s.re.test(brief)).map(([d])=>d);
+  const domains=found.length?found:['backend','frontend'];
+  document.getElementById('domains').innerHTML='';
+  domains.forEach(d=>addDomain(d,DOMAIN_SIGNALS[d].path));
+  notes.push(`domains: ${domains.join(', ')}${found.length?'':' (default — brief named none)'}`);
+  // 2. platform-aware QA toggles
+  const qaW=document.querySelector('[data-role=qa_web] .enabled'),
+        qaM=document.querySelector('[data-role=qa_mobile] .enabled');
+  if(qaW)qaW.value=domains.includes('frontend')?'yes':'no';
+  if(qaM)qaM.value=domains.includes('mobile')?'yes':'no';
+  // 3. topology hint
+  if(/monorepo|single repo|one repo|turborepo|nx\b/i.test(brief)){document.getElementById('topology').value='monorepo';notes.push('topology: monorepo (from brief)');}
+  // 4. budget hint tilts the model recs (small budget -> flat-rate everywhere)
+  const cheap=/\b(small budget|cheap|low cost|free|budget|side project|mvp)\b/i.test(brief);
+  // 5. models via the existing engine, then agents per role
+  applyRecs();
+  if(cheap){const s=document.querySelector('[data-role=brain] select.model');
+    const flat=MODELS.find(m=>m.available!==false&&/glm|qwen/.test(m.route));
+    if(s&&flat){s.value=flat.route;hint(s,flat.route,'budget brief: flat-rate brain');}
+    notes.push('budget: flat-rate models preferred');}
+  document.querySelectorAll('.model-sel').forEach(ms=>{
+    const m=ms.querySelector('select.model'), a=ms.parentNode.querySelector('select.agent');
+    if(m&&a){const b=bestAgent(m.value); if(b)a.value=b;}
+  });
+  // 6. spec mode + project name guess
+  if(SPEC.text.trim())notes.push(`spec: ingest (${SPEC.filename||'pasted text'})`);
+  const pn=document.getElementById('project');
+  if(!pn.value.trim()){const m=brief.match(/\b(?:a|an)\s+([a-z0-9- ]{3,30})\s+(?:app|platform|tool|site|service)/i);
+    if(m)pn.value=m[1].trim().toLowerCase().replace(/\s+/g,'-');}
+  notes.push('everything below is editable — these are just preselections');
+  document.getElementById('suggestnote').textContent='✨ '+notes.join('\n✨ ');
 }
 
 // ---------- recommendation engine ----------
@@ -393,11 +506,21 @@ function addDomain(name,path){
     if(m.available===false)o.dataset.login=m.login||'';sel.appendChild(o);});
   const r=pick('impl');
   if(r&&[...sel.options].some(o=>o.value===r)){sel.value=r;hint(sel,r,RECS.impl.why);}
+  // agent select for this domain card too
+  const wrap=document.createElement('div');
+  wrap.innerHTML=`<label>Coding agent</label><select class="agent"></select>`;
+  const asel=wrap.querySelector('select');
+  HOSTSDATA.forEach(h=>{const o=document.createElement('option');o.value=h.id;o.textContent=h.id;asel.appendChild(o);});
+  if(!HOSTSDATA.length){const o=document.createElement('option');o.value='';o.textContent='(none detected)';asel.appendChild(o);}
+  div.querySelector('.row3').appendChild(wrap);
+  const b=bestAgent(sel.value); if(b)asel.value=b;
+  sel.addEventListener('change',()=>{const nb=bestAgent(sel.value); if(nb)asel.value=nb;});
 }
 
 // ---------- collect + submit ----------
 function roleData(card){
   return {model:card.querySelector('select.model')?.value||null,
+    agent:card.querySelector('select.agent')?.value||null,
     effort:card.querySelector('.effort')?.value||'medium',
     enabled:card.querySelector('.enabled')?card.querySelector('.enabled').value==='yes':true,
     env_up:card.querySelector('.envup')?.value.trim()||null,
@@ -408,7 +531,10 @@ function collect(){
   return {_format:'swarm-answers/v1',generated:new Date().toISOString(),
     project:document.getElementById('project').value.trim()||'unnamed',
     topology:document.getElementById('topology').value,
-    spec:{mode:radio('specmode'),draft_path:val('draftpath'),design_folder:val('designpath')},
+    brief:document.getElementById('brief').value.trim()||null,
+    spec:{mode:radio('specmode'),draft_path:val('draftpath'),design_folder:val('designpath'),
+          inline_text:SPEC.text.trim()?SPEC.text.slice(0,60000):null,
+          inline_filename:SPEC.filename},
     roles:{brain:R('brain'),
       implementers:[...document.querySelectorAll('.domain')].map(d=>({
         name:d.querySelector('.dname').value.trim()||'domain',

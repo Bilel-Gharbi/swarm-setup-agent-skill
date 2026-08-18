@@ -295,10 +295,14 @@ BEFORE starting the interview, check for `./.jcode/swarm-answers.json`
 (format `swarm-answers/v1`, produced by the swarm-configurator web page). If it
 exists:
 
-1. Read it. It contains the full interview answers: project, topology, spec
-   mode/draft path/design folder, every role with its model, effort, and its
-   list of MANDATORY skills, concurrency, spawn_mode, swarm mode, escalation,
-   human-gate flag, and optional Obsidian vault.
+1. Read it. It contains the full interview answers: project, topology, a
+   free-text `brief`, spec mode/draft path/design folder (plus optional
+   `spec.inline_text` — a spec the user uploaded or pasted in the form: write
+   it to the spec draft path and treat spec mode as ingest), every role with
+   its model, its `agent` (which CLI executes that role: jcode/claude/pi/
+   opencode/codex), effort, and its list of MANDATORY skills, concurrency,
+   spawn_mode, swarm mode, escalation, human-gate flag, and optional Obsidian
+   vault. Honor each role's `agent` via the matching Host adapter above.
 2. Do NOT re-ask those questions. Only ask about fields that are missing,
    null, or invalid.
 3. Still run `swarm list_models` and validate every chosen model route. For
