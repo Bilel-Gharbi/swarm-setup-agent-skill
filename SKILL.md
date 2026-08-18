@@ -21,7 +21,7 @@ FILENAME and the fan-out MECHANISM.
 Detect the host first. You usually know which agent you are; if not, run:
 
 ```bash
-python3 ~/.agents/skills/swarm-setup-agent-skill/scripts/serve.py --detect-hosts
+python3 ~/.jcode/skills/swarm-setup-agent-skill/scripts/serve.py --detect-hosts
 ```
 
 It prints the resolved state directory and every agent CLI installed on this
@@ -151,13 +151,13 @@ gives for free. YOU must supply them, or the policy is decorative:
 ## Quickstart command reference
 
 All commands below are verified. `SKILL_DIR` is the folder containing THIS
-SKILL.md (canonically `~/.agents/skills/swarm-setup-agent-skill`; on some hosts
+SKILL.md (canonically `~/.jcode/skills/swarm-setup-agent-skill`; on some hosts
 you reach it via a symlink like `~/.claude/skills/swarm-setup-agent-skill`).
 Run everything from the PROJECT ROOT. The user invokes the skill as
 `/swarm-setup-agent-skill`; these are the commands YOU run to serve it.
 
 ```bash
-SKILL_DIR=~/.agents/skills/swarm-setup-agent-skill
+SKILL_DIR=~/.jcode/skills/swarm-setup-agent-skill
 
 # 1. INIT — create .jcode/ and export live model routes for the form.
 #    Get the routes from the `swarm list_models` tool, then write the file.

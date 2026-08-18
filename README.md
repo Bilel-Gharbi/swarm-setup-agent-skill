@@ -33,18 +33,28 @@ BRAIN (strong)  ->  CRITIC (cheap)  ->  HUMAN GATE
 
 ## Install
 
-Clone once, then symlink into whichever hosts you use.
+Clone into your primary host's skills folder as a REAL directory, then symlink
+it into the others.
 
 ```bash
-git clone https://github.com/Bilel-Gharbi/swarm-setup-agent-skill ~/.agents/skills/swarm-setup-agent-skill
-S=~/.agents/skills/swarm-setup-agent-skill
+# jcode primary (its server does not load symlinked skill dirs)
+git clone https://github.com/Bilel-Gharbi/swarm-setup-agent-skill \
+  ~/.jcode/skills/swarm-setup-agent-skill
+S=~/.jcode/skills/swarm-setup-agent-skill
 
-ln -s $S ~/.jcode/skills/swarm-setup-agent-skill             # jcode
 ln -s $S ~/.claude/skills/swarm-setup-agent-skill            # Claude Code
 ln -s $S ~/.config/opencode/skills/swarm-setup-agent-skill   # opencode
 ln -s $S ~/.codex/skills/swarm-setup-agent-skill             # codex
 ln -s $S ~/.pi/agent/skills/swarm-setup-agent-skill          # pi
+ln -s $S ~/.agents/skills/swarm-setup-agent-skill            # shared convention
 ```
+
+> **Symlink caveat.** Put the real directory in the host you use most. jcode's
+> server refuses to load a skill whose directory is a symlink (it is discovered
+> and listed, then fails with `Skill '<name>' is not installed on the server`).
+> Hosts that only read `SKILL.md` from disk follow symlinks fine. If a host says
+> the skill is missing while listing it, move the real directory there and
+> symlink the rest.
 
 Requirements: `python3`, plus `node` for the tests. Nothing else, no packages.
 
@@ -53,7 +63,6 @@ Check what it found on your machine:
 ```bash
 python3 $S/scripts/serve.py --detect-hosts
 ```
-
 ```json
 {
   "state_dir": "/path/to/project/.swarm",
@@ -122,7 +131,7 @@ that unblocks them.
 ### 2. Serve the interview and dashboard
 
 ```bash
-SKILL_DIR=~/.agents/skills/swarm-setup-agent-skill
+SKILL_DIR=~/.jcode/skills/swarm-setup-agent-skill
 python3 $SKILL_DIR/scripts/serve.py --port 7777 --project-dir . --state-dir .swarm
 ```
 
@@ -491,7 +500,7 @@ Not covered, by design or honestly not yet:
 ## Tests
 
 ```bash
-~/.agents/skills/swarm-setup-agent-skill/tests/run.sh
+~/.jcode/skills/swarm-setup-agent-skill/tests/run.sh
 ```
 
 Node plus python3, no packages. Covers syntax, a structural audit of the HTML
@@ -519,6 +528,8 @@ tests/run.sh          regression suite
 
 - Default port is 7777. If it is busy, pass `--port` and tell the user the URL.
 - Pass the same `--state-dir` to every `serve.py` call in one run.
+- Keep the real skill directory in your primary host and symlink the others; see
+  the symlink caveat under Install.
 - The skill scanner reads every host's skill folder, so a role can require a
   skill you installed under a different agent.
 - Model routes are never hardcoded. Whatever `swarm list_models` reports shows
