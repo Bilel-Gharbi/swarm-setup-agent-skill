@@ -80,7 +80,7 @@ python3 $S/scripts/serve.py --detect-hosts
 | Host | Policy file it auto-loads | Fan-out | Cross-provider routing |
 |---|---|---|---|
 | jcode | `.jcode/swarm-prompt.md` | native `swarm` tool | yes |
-| Claude Code | `CLAUDE.md` + `.claude/agents/*.md` | `Task` subagents | within Anthropic only |
+| Claude Code | `CLAUDE.md` + `.claude/agents/*.md` | `Task` subagents, or `claude -p` + `ANTHROPIC_BASE_URL` per node | yes, via env routing |
 | opencode | `AGENTS.md` | `opencode run --model` per node | yes |
 | codex | `AGENTS.md` | `codex exec --model` per node | yes |
 | pi | `AGENTS.md` | `pi -p --provider --model` per node | yes |
@@ -94,6 +94,14 @@ node, dependency order and concurrency enforced by the coordinator, timeboxes
 via `timeout`, and the same `swarm-status.json` written by hand so the dashboard
 is identical. Claude Code additionally gets one generated subagent file per
 role, since it selects subagents by file rather than by a routing prompt.
+
+Claude Code's subagent `model:` field is Anthropic-only, but cross-provider
+routing works one level up: fan out each node as its own `claude -p` process
+with `ANTHROPIC_BASE_URL` pointed at any Anthropic-compatible endpoint (zai/GLM
+officially supports one; Ollama serves one locally since v0.14). Cheap nodes go
+to the alternate provider, review gates stay on real Claude with an unmodified
+env. For many providers at once, run a router proxy (claude-code-router,
+LiteLLM) as a single local endpoint.
 
 The state directory is host-neutral: `--state-dir`, else `$SWARM_STATE_DIR`,
 else an existing `.jcode/`, else `.swarm/`.

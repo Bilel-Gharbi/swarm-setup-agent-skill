@@ -81,10 +81,38 @@ Report findings, what_i_did_not_check, and a confidence level.
 If confidence is low, say so instead of approving.
 ```
 
-Model routing is per-subagent (`model:` frontmatter: `haiku|sonnet|opus` or an
-explicit id), so cross-provider cheap implementers are NOT available. Say this
-plainly: on Claude Code the cheap/expensive split is within one family. Fan out
-with the `Task` tool, one call per node, respecting `depends_on` yourself.
+Subagent `model:` frontmatter only accepts Anthropic models (`haiku|sonnet|
+opus` or an explicit Claude id), so `Task`-based fan-out is Anthropic-only.
+
+CROSS-PROVIDER ROUTING STILL WORKS, one level up: Claude Code sends its API
+traffic wherever `ANTHROPIC_BASE_URL` points, and many providers expose an
+Anthropic-compatible endpoint. So instead of `Task` subagents, fan out each
+node as its OWN `claude -p` process with per-process env:
+
+```bash
+# zai / GLM (official Anthropic-compatible endpoint)
+ANTHROPIC_BASE_URL=https://api.z.ai/api/anthropic \
+ANTHROPIC_AUTH_TOKEN=$ZAI_API_KEY \
+claude -p --model glm-4.7 "$(cat .swarm/node-be1.md)" > .swarm/out-be1.md 2>&1
+
+# local Ollama (Anthropic-compatible since v0.14; needs a large-context model)
+ANTHROPIC_BASE_URL=http://localhost:11434 \
+claude -p --model qwen3-coder "$(cat .swarm/node-fe1.md)" > .swarm/out-fe1.md 2>&1
+
+# unmodified env = real Anthropic, for the reviewer gate
+claude -p --model opus "$(cat .swarm/node-rev1.md)" > .swarm/out-rev1.md 2>&1
+```
+
+This gives the full cheap-implementer / strong-reviewer split on Claude Code.
+Record each role's `base_url` + `model` in the policy. For many providers at
+once, a router proxy (claude-code-router, LiteLLM) is the heavier alternative:
+one local Anthropic-compatible endpoint that dispatches per model name.
+
+Caveats to write into the policy: per-process env routes EVERYTHING in that
+process (subagents included) to that provider; interactive `Task` subagents in
+the MAIN session stay Anthropic-only; tool-calling quality varies by provider,
+so keep review gates on real Claude. Enforce `depends_on`, concurrency, and
+timeboxes yourself per the non-native host rules.
 
 ### Adapter: opencode
 
