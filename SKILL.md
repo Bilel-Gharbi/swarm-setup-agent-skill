@@ -108,6 +108,26 @@ Record each role's `base_url` + `model` in the policy. For many providers at
 once, a router proxy (claude-code-router, LiteLLM) is the heavier alternative:
 one local Anthropic-compatible endpoint that dispatches per model name.
 
+PREFER DELEGATION when other agent CLIs are installed: Claude Code stays the
+coordinator (brain + reviewers on real Claude) and dispatches implementation
+nodes to OTHER agent CLIs via bash, exactly like the pi/opencode/codex adapters
+below:
+
+```bash
+pi -p --provider zai --model glm-4.7 --session-id be1 \
+   "$(cat .swarm/node-be1.md)" > .swarm/out-be1.md 2>&1
+opencode run --model ollama/qwen3-coder \
+   "$(cat .swarm/node-fe1.md)" > .swarm/out-fe1.md 2>&1
+```
+
+Delegation is usually BETTER than env-routing because each CLI's harness is
+tuned for its own models (tool-calling, system prompts, sessions), whereas the
+`ANTHROPIC_BASE_URL` trick sends Claude-specific prompts to a foreign model.
+Use env-routing only when a node genuinely needs Claude Code's own toolset
+(its file tools, configured MCP servers) run by a cheap model. Ask the user
+which CLIs are installed (`--detect-hosts` shows this) and record the chosen
+mechanism per role in the policy.
+
 Caveats to write into the policy: per-process env routes EVERYTHING in that
 process (subagents included) to that provider; interactive `Task` subagents in
 the MAIN session stay Anthropic-only; tool-calling quality varies by provider,

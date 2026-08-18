@@ -95,13 +95,21 @@ via `timeout`, and the same `swarm-status.json` written by hand so the dashboard
 is identical. Claude Code additionally gets one generated subagent file per
 role, since it selects subagents by file rather than by a routing prompt.
 
-Claude Code's subagent `model:` field is Anthropic-only, but cross-provider
-routing works one level up: fan out each node as its own `claude -p` process
-with `ANTHROPIC_BASE_URL` pointed at any Anthropic-compatible endpoint (zai/GLM
-officially supports one; Ollama serves one locally since v0.14). Cheap nodes go
-to the alternate provider, review gates stay on real Claude with an unmodified
-env. For many providers at once, run a router proxy (claude-code-router,
-LiteLLM) as a single local endpoint.
+Claude Code's subagent `model:` field is Anthropic-only. Two ways around it,
+in order of preference:
+
+1. **Delegate to other agent CLIs** (best): Claude Code stays coordinator and
+   dispatches nodes to `pi -p --provider zai ...`, `opencode run --model ...`,
+   or `codex exec ...` via bash. Each CLI's harness is tuned for its own
+   models, so tool-calling quality is native.
+2. **Env-route `claude -p`**: point `ANTHROPIC_BASE_URL` at any
+   Anthropic-compatible endpoint (zai/GLM officially; Ollama locally since
+   v0.14) per node process. Use this only when a node needs Claude Code's own
+   toolset (file tools, MCP servers) run by a cheap model. For many providers
+   at once, a router proxy (claude-code-router, LiteLLM) is the single-endpoint
+   version.
+
+Either way, review gates stay on real Claude with an unmodified env.
 
 The state directory is host-neutral: `--state-dir`, else `$SWARM_STATE_DIR`,
 else an existing `.jcode/`, else `.swarm/`.
