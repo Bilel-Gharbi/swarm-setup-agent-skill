@@ -70,6 +70,18 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a2) });
   ok((await res.json()).ok === true, 'POST /api/answers accepts the new schema');
 
+  // ---- file upload path (FileReader + change event) ----
+  const fi = document.getElementById('specfile');
+  const file = new window.File(['# Uploaded Spec\ncontent'], 'spec-draft.md', { type: 'text/markdown' });
+  Object.defineProperty(fi, 'files', { value: [file] });
+  fi.dispatchEvent(new window.Event('change'));
+  await new Promise(r => setTimeout(r, 300));
+  const dz = document.getElementById('specdrop');
+  ok(dz.classList.contains('loaded') && /spec-draft\.md/.test(dz.textContent), 'file upload: dropzone loaded + named');
+  ok(document.getElementById('spectext').value.includes('Uploaded Spec'), 'file upload: textarea mirrors content');
+  const a3 = window.collect();
+  ok(a3.spec.inline_filename === 'spec-draft.md', 'file upload: filename in answers');
+
   console.log(fails ? `\n${fails} DOM e2e test(s) failed` : '\nall DOM e2e tests passed');
   process.exit(fails ? 1 : 0);
 })();
