@@ -351,8 +351,9 @@ function suggestTeam(){
   applyRecs();
   if(cheap){const s=document.querySelector('[data-role=brain] select.model');
     const flat=MODELS.find(m=>m.available!==false&&/glm|qwen/.test(m.route));
-    if(s&&flat){s.value=flat.route;hint(s,flat.route,'budget brief: flat-rate brain');}
-    notes.push('budget: flat-rate models preferred');}
+    if(s&&flat){s.value=flat.route;hint(s,flat.route,'budget brief: flat-rate brain');
+      notes.push('budget: flat-rate models preferred');}
+    else notes.push('budget noted, but no flat-rate route is available — log in to zai/qwen/kimi for cheaper runs');}
   document.querySelectorAll('.model-sel').forEach(ms=>{
     const m=ms.querySelector('select.model'), a=ms.parentNode.querySelector('select.agent');
     if(m&&a){const b=bestAgent(m.value); if(b)a.value=b;}
