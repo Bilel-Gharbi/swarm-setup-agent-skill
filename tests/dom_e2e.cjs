@@ -58,6 +58,18 @@ const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) fails++
   ok(answers.roles.implementers.length === 3, '3 implementers in answers');
   ok(answers.roles.brain.agent !== undefined, 'brain carries an agent field: ' + answers.roles.brain.agent);
 
+  // ---- spec paste + full submit roundtrip (covers the upload/paste feature) ----
+  const ta = document.getElementById('spectext');
+  ta.value = '# My Spec\n\nBuild a thing.';
+  ta.dispatchEvent(new window.Event('input'));
+  const on = document.querySelector('#specmode .chip.on');
+  ok(on && on.dataset.v === 'ingest', 'pasting spec flips mode chip to ingest');
+  const a2 = window.collect();
+  ok(a2.spec.inline_text === '# My Spec\n\nBuild a thing.', 'inline spec text in answers');
+  const res = await fetch('http://127.0.0.1:7794/api/answers', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(a2) });
+  ok((await res.json()).ok === true, 'POST /api/answers accepts the new schema');
+
   console.log(fails ? `\n${fails} DOM e2e test(s) failed` : '\nall DOM e2e tests passed');
   process.exit(fails ? 1 : 0);
 })();
